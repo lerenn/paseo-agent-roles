@@ -1,0 +1,8 @@
+{
+  "id": "agent-roles",
+  "name": "Agent roles",
+  "description": "Start agents from versioned role definitions: prompt, model, MCP servers, tool policy.",
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
