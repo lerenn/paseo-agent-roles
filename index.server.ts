@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { applyRole } from "./server/apply";
@@ -22,6 +23,15 @@ import {
 } from "./shared/rpc";
 import { rolesSettings, type GitSource } from "./shared/settings";
 
+/** `.paseo/default-role` in the workspace: the role for agents created there without an explicit one. */
+async function defaultRoleFor(cwd: string): Promise<string | undefined> {
+  try {
+    return (await readFile(path.join(cwd, ".paseo", "default-role"), "utf8")).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function contribute(server: PluginServerContext) {
   const settings = server.registerSettings(rolesSettings);
   const gitSources = new GitSources();
@@ -45,8 +55,8 @@ export default function contribute(server: PluginServerContext) {
   });
 
   const removeHook = server.before("agent.create", async ({ request }) => {
-    const name = request.env?.[ROLE_ENV];
-    if (!name) return;
+    const name = request.env?.[ROLE_ENV] || (await defaultRoleFor(request.config.cwd));
+    if (!name || name === "none") return;
     const sources = await configured();
     const dirs = [
       path.join(request.config.cwd, projectRolesPath),

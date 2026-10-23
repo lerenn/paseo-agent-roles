@@ -55,4 +55,15 @@ describe("agent.create hook", () => {
       register()({ request: { config: { provider: "claude", cwd: "/x" }, env: { PASEO_AGENT_ROLE: "zzz" } } }, {}),
     ).rejects.toThrow(/no such role/);
   });
+
+  it("PROTOTYPE: applies .paseo/default-role when no role is given, explicit env wins, 'none' opts out", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "proj-"));
+    await mkdir(path.join(cwd, ".paseo"), { recursive: true });
+    await writeFile(path.join(cwd, ".paseo", "default-role"), "reviewer\n");
+    const h = register();
+    const base = { config: { provider: "claude", cwd } };
+    expect((await h({ request: base }, {})).config.systemPrompt).toMatch(/code reviewer/);
+    expect((await h({ request: { ...base, env: { PASEO_AGENT_ROLE: "qa" } } }, {})).config.systemPrompt).toMatch(/QA engineer/);
+    expect(await h({ request: { ...base, env: { PASEO_AGENT_ROLE: "none" } } }, {})).toBeUndefined();
+  });
 });
