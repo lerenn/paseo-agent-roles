@@ -10,13 +10,14 @@
     "index.server.ts",
     "server/",
     "shared/",
-    "roles/",
-    "LICENSE"
+    "LICENSE",
+    "role.schema.json"
   ],
   "scripts": {
     "build": "tsc --noEmit -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "schema": "UPDATE_SCHEMA=1 vitest run server/schema.test.ts"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.11.2",
@@ -24,5 +25,8 @@
     "typescript": "^5.9.3",
     "vitest": "^3.2.0",
     "zod": "^4.4.3"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
   }
 }
