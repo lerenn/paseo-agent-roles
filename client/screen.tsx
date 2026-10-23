@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ROLE_ENV } from "../shared/role";
 import { hostTitle } from "./host-title";
+import { LaunchFields } from "./launch-fields";
 import {
   clearTokenRpc,
   createPullRequestRpc,
@@ -130,6 +131,7 @@ export function RolesScreen({ theme, layout, navigation, host }: PluginScreenPro
           <Text style={r.error ? styles.error : styles.muted} numberOfLines={2}>
             {r.error ?? r.role?.description ?? ""}
           </Text>
+          {r.role && launchSummary(r.role) ? <Text style={styles.muted}>{launchSummary(r.role)}</Text> : null}
         </Pressable>
       ))}
 
@@ -144,6 +146,7 @@ export function RolesScreen({ theme, layout, navigation, host }: PluginScreenPro
               onValueChange={(sourceId) => setEditing({ ...editing, sourceId })}
             />
           ) : null}
+          <LaunchFields text={editing.text} onChange={(text) => setEditing({ ...editing, text })} />
           <TextInput
             multiline
             autoCapitalize="none"
@@ -237,6 +240,7 @@ function Detail(props: {
       {role ? (
         <>
           <Field styles={styles} label="Provider / model" value={[role.provider, role.model].filter(Boolean).join(" / ") || "unchanged"} />
+          <Field styles={styles} label="Thinking level / permission mode" value={[role.thinkingOptionId, role.modeId].filter(Boolean).join(" / ") || "unchanged"} />
           <Field styles={styles} label="Tools" value={tools.join("\n") || "none added"} />
           <Field styles={styles} label="Environment" value={Object.keys(role.env ?? {}).join(", ") || "none"} />
           <Field styles={styles} label="Provider options" value={role.providerOptions ? JSON.stringify(role.providerOptions) : "none"} />
@@ -251,6 +255,18 @@ function Detail(props: {
       {role ? <StartAgent entry={entry} styles={styles} navigation={props.navigation} /> : null}
     </View>
   );
+}
+
+/** "claude · claude-haiku-5-5 · thinking low · plan", or "" when the role forces none of them. */
+function launchSummary(role: NonNullable<RoleEntry["role"]>): string {
+  return [
+    role.provider,
+    role.model,
+    role.thinkingOptionId ? `thinking ${role.thinkingOptionId}` : undefined,
+    role.modeId,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function gitStatusText(status?: GitStatus): string {
@@ -511,7 +527,7 @@ function StartAgent(props: { entry: RoleEntry; styles: Styles; navigation: Plugi
       />
       <SettingsSelect
         label="Provider"
-        hint={entry.role?.provider ? "The role sets the provider." : undefined}
+        hint={entry.role?.provider ? "The role sets the provider, model, thinking level and mode it lists." : undefined}
         value={chosen}
         options={(providers.data ?? []).map((p) => ({ label: p, value: p }))}
         onValueChange={setProvider}
