@@ -1,0 +1,4 @@
+name: roundtrip-promoted
+description: Throwaway role for the git write test.
+systemPrompt: |
+  Test role.
