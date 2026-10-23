@@ -24,7 +24,7 @@ Agents created without the variable are not touched. An unknown role name, or no
 
 ## The Agent Roles screen
 
-The plugin adds an **Agent Roles** item to the sidebar (reorder or hide it in Settings > Sidebar). When the app knows several hosts, the item and the screen heading read "Agent Roles · <host label>" so you can tell which daemon they act on. Roles come only from [git sources](#git-sources); with none configured the screen says "Add a git source to load roles". Otherwise it lists every role with its source, shows its prompt, model, tools and environment, and lets you:
+The plugin adds an **Agent Roles** item to the sidebar (reorder or hide it in Settings > Sidebar). Roles come only from [git sources](#git-sources); with none configured the screen says "Add a git source to load roles". Otherwise it lists every role with its source, shows its prompt, model, tools and environment, and lets you:
 
 - create, edit or delete a role (dropdowns for provider, model, thinking level and permission mode, filled from the daemon's providers, sit above the YAML; the role list shows what each role forces): the change is written to a git source (you pick one when there are several) through the [write flow](#writing-roles-to-git), a pull request by default;
 - start a new agent with a role: pick a workspace and provider, optionally type a first prompt, and the agent is created with `PASEO_AGENT_ROLE` set.

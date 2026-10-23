@@ -1,13 +1,11 @@
-import { useHosts, type PluginClientContext, type PluginSidebarItemProps } from "@getpaseo/plugin/client";
+import { type PluginClientContext, type PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
-import { hostTitle } from "./client/host-title";
 import { RolesScreen } from "./client/screen";
 
-function RolesItem({ currentScreen, openScreen, host }: PluginSidebarItemProps) {
-  const hosts = useHosts();
+function RolesItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
   return (
     <SidebarRow
-      label={hostTitle("Agent Roles", host.label, hosts.length)}
+      label="Agent Roles"
       icon="UserCog"
       active={currentScreen?.screenId === "roles"}
       onPress={() => openScreen({ screenId: "roles" })}

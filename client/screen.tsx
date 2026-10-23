@@ -1,10 +1,9 @@
-import { useHosts, usePaseo, useRpc, useSettings, type PluginScreenProps } from "@getpaseo/plugin/client";
+import { usePaseo, useRpc, useSettings, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { ExternalLink, SettingsInput, SettingsSelect } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ROLE_ENV } from "../shared/role";
-import { hostTitle } from "./host-title";
 import { LaunchFields } from "./launch-fields";
 import { sourcesSummary } from "./sources-summary";
 import {
@@ -40,8 +39,7 @@ systemPrompt: |
 /** A role being written: the text, and the git source it will be proposed to. */
 type Editing = { text: string; original: string | null; sourceId: string };
 
-export function RolesScreen({ theme, layout, navigation, host }: PluginScreenProps) {
-  const hosts = useHosts();
+export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
   const queryClient = useQueryClient();
   const listRoles = useRpc(listRolesRpc);
   const syncSources = useRpc(syncSourcesRpc);
@@ -95,7 +93,7 @@ export function RolesScreen({ theme, layout, navigation, host }: PluginScreenPro
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.row}>
-        <Text style={styles.title}>{hostTitle("Agent Roles", host.label, hosts.length)}</Text>
+        <Text style={styles.title}>Agent Roles</Text>
         {sources.length > 0 ? <Button styles={styles} label="New role" onPress={newRole} /> : null}
       </View>
       <Text style={styles.muted}>
