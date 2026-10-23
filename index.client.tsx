@@ -1,16 +1,13 @@
-import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
+import { useHosts, type PluginClientContext, type PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
-import { hostBadgeComponent } from "./client/host-badge";
+import { hostTitle } from "./client/host-title";
 import { RolesScreen } from "./client/screen";
 
-const HostBadge = hostBadgeComponent();
-
 function RolesItem({ currentScreen, openScreen, host }: PluginSidebarItemProps) {
+  const hosts = useHosts();
   return (
     <SidebarRow
-      label="Agent Roles"
-      // `subtitle` is newer than the pinned plugin types, hence the spread.
-      {...(HostBadge ? { subtitle: <HostBadge hostId={host.id} /> } : {})}
+      label={hostTitle("Agent Roles", host.label, hosts.length)}
       icon="UserCog"
       active={currentScreen?.screenId === "roles"}
       onPress={() => openScreen({ screenId: "roles" })}
