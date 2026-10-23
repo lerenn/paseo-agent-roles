@@ -7,10 +7,8 @@ import { deleteUserRole, listRoles, saveUserRole } from "./catalog";
 const tmp = () => mkdtemp(path.join(tmpdir(), "catalog-"));
 
 describe("role catalog", () => {
-  it("lists bundled roles when nothing else exists", async () => {
-    const roles = await listRoles(undefined, { user: await tmp() });
-    expect(roles.map((r) => r.name)).toEqual(["babysitter", "implementer", "investigator", "qa", "reviewer"]);
-    expect(roles.every((r) => r.source === "bundled" && r.role)).toBe(true);
+  it("lists nothing when no roles exist anywhere", async () => {
+    expect(await listRoles(undefined, { user: await tmp() })).toEqual([]);
   });
 
   it("reports the winning source and what it overrides", async () => {
@@ -22,7 +20,7 @@ describe("role catalog", () => {
     await writeFile(path.join(user, "mine.yaml"), "name: mine\n");
     const roles = await listRoles(project, { user });
     const qa = roles.find((r) => r.name === "qa");
-    expect(qa).toMatchObject({ source: "project", overrides: ["user", "bundled"] });
+    expect(qa).toMatchObject({ source: "project", overrides: ["user"] });
     expect(qa?.role?.model).toBe("p");
     expect(roles.find((r) => r.name === "mine")?.source).toBe("user");
   });

@@ -9,7 +9,7 @@ import { type CatalogDirs, listRoles } from "./catalog";
 import { forgeFor, type Forge } from "./forge";
 import { type Change, type WriteResult, writeChange } from "./git-write";
 import { GitSources, sourceLabel } from "./git-sync";
-import { describeError, EXTENSIONS, findRole, parseRoleText } from "./loader";
+import { describeError, EXTENSIONS, loadRole, parseRoleText } from "./loader";
 import type { ProposalStore } from "./proposals";
 import { scrub, type TokenStore } from "./tokens";
 
@@ -184,7 +184,7 @@ export class RolesService {
       }
       try {
         const local = parseRoleText(await readFile(userFile, "utf8"));
-        const remote = await findRole(p.role, [this.deps.sources.rolesDir(source)]);
+        const remote = await loadRole(p.role, [this.deps.sources.rolesDir(source)]);
         if (remote && isDeepStrictEqual(local, remote)) {
           await rm(userFile);
           this.deps.proposals.update(p.id, { localCopyRemoved: true });

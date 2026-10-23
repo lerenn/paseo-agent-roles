@@ -3,7 +3,6 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
 import { ZodError } from "zod";
-import { bundledRoles } from "./bundled";
 import { roleNameSchema, roleSchema, type Role } from "../shared/role";
 
 export const EXTENSIONS = [".yaml", ".yml", ".json"];
@@ -36,13 +35,8 @@ export function parseRole(source: string, file: string): Role {
   return role;
 }
 
-/** Find a role by name; earlier directories win, then the bundled examples. Null when none has it. */
+/** Find a role by name; earlier directories win. Null when none has it. */
 export async function loadRole(name: string, dirs: string[]): Promise<Role | null> {
-  return (await findRole(name, dirs)) ?? bundledRoles[roleNameSchema.parse(name)] ?? null;
-}
-
-/** Like loadRole, without the bundled fallback. */
-export async function findRole(name: string, dirs: string[]): Promise<Role | null> {
   const safe = roleNameSchema.parse(name);
   for (const dir of dirs) {
     for (const ext of EXTENSIONS) {

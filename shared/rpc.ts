@@ -2,7 +2,7 @@ import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 import { roleSchema } from "./role";
 
-export const roleSourceSchema = z.enum(["project", "user", "git", "bundled"]);
+export const roleSourceSchema = z.enum(["project", "user", "git"]);
 export type RoleSource = z.infer<typeof roleSourceSchema>;
 
 export const roleEntrySchema = z.object({
@@ -10,9 +10,9 @@ export const roleEntrySchema = z.object({
   source: roleSourceSchema,
   /** Human label of the source, e.g. "git: https://host/repo.git@main". */
   origin: z.string(),
-  /** Absolute file path; absent for bundled roles. */
+  /** Absolute file path. */
   file: z.string().optional(),
-  /** File contents (YAML for bundled roles), for display and editing. */
+  /** File contents, for display and editing. */
   text: z.string(),
   /** Parsed role, or why the file is invalid. */
   role: roleSchema.optional(),
