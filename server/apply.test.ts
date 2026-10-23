@@ -18,19 +18,51 @@ describe("applyRole", () => {
     expect(applyRole(base, role({ systemPrompt: "role" })).config.systemPrompt).toBe("role");
   });
 
-  it("merges MCP servers, role winning on name clashes", () => {
-    const req = {
-      ...base,
-      config: {
-        ...base.config,
-        mcpServers: { a: { type: "http" as const, url: "old" }, b: { type: "http" as const, url: "b" } },
-      },
-    };
-    const out = applyRole(req, role({ mcpServers: { a: { type: "http", url: "new" } } }));
-    expect(out.config.mcpServers).toEqual({
-      a: { type: "http", url: "new" },
-      b: { type: "http", url: "b" },
+  it("passes MCP server names to the MCP proxy through PASEO_MCP_SERVERS", () => {
+    const out = applyRole(base, role({ mcpServers: ["linear", "sentry"] }));
+    expect(out.env?.PASEO_MCP_SERVERS).toBe("linear,sentry");
+    expect(out.config.mcpServers).toBeUndefined();
+    expect(applyRole(base, role({ mcpServers: ["*"] })).env?.PASEO_MCP_SERVERS).toBe("*");
+    expect(applyRole(base, role({})).env).not.toHaveProperty("PASEO_MCP_SERVERS");
+    const explicit = applyRole({ ...base, env: { ...base.env, PASEO_MCP_SERVERS: "only-this" } }, role({ mcpServers: ["linear"] }));
+    expect(explicit.env?.PASEO_MCP_SERVERS).toBe("only-this");
+  });
+
+  it("rejects MCP server entries that are not plain names", () => {
+    expect(roleSchema.safeParse({ name: "r", mcpServers: [{ type: "http", url: "https://x" }] }).success).toBe(false);
+    expect(roleSchema.safeParse({ name: "r", mcpServers: ["https://x"] }).success).toBe(false);
+  });
+
+  it("sets other plugins' defaults as the env they read, below role env and creation env", () => {
+    const r = role({ plugins: { kubeTemplate: "dev", warder: "off", ticket: "ANY-1" }, env: { PASEO_KUBE_TEMPLATE: "from-env" } });
+    expect(applyRole(base, r).env).toMatchObject({
+      PASEO_KUBE_TEMPLATE: "from-env",
+      PASEO_WARDER: "off",
+      PASEO_AGENT_TICKET: "ANY-1",
     });
+    const explicit = applyRole({ ...base, env: { ...base.env, PASEO_AGENT_TICKET: "ANY-9" } }, r);
+    expect(explicit.env?.PASEO_AGENT_TICKET).toBe("ANY-9");
+    expect(applyRole(base, role({})).env).toEqual({ PASEO_AGENT_ROLE: "r" });
+  });
+
+  it("resolves ${NAME} references from the daemon environment", () => {
+    const r = role({ env: { API_TOKEN: "${GH_TOKEN}", URL: "https://${HOST}/x", PLAIN: "v" } });
+    const out = applyRole(base, r, { GH_TOKEN: "abc", HOST: "h" });
+    expect(out.env).toMatchObject({ API_TOKEN: "abc", URL: "https://h/x", PLAIN: "v" });
+    expect(() => applyRole(base, r, { HOST: "h" })).toThrow(/API_TOKEN references \$\{GH_TOKEN\}, which is not set on the daemon/);
+  });
+
+  it("refuses secrets written into a role", () => {
+    const bad = (env: Record<string, string>) => roleSchema.safeParse({ name: "r", env });
+    expect(bad({ GITHUB_TOKEN: "ghp_" + "a".repeat(30) }).success).toBe(false);
+    expect(bad({ SOME: "sk-" + "b".repeat(30) }).success).toBe(false);
+    expect(bad({ DB_PASSWORD: "hunter2" }).success).toBe(false);
+    expect(bad({ API_KEY: "literal" }).success).toBe(false);
+    expect(bad({ SOME: "-----BEGIN RSA PRIVATE KEY-----" }).success).toBe(false);
+    expect(bad({ GITHUB_TOKEN: "${GH_TOKEN}" }).success).toBe(true);
+    expect(bad({ LOG_LEVEL: "debug", PASEO_KUBE_TEMPLATE: "t" }).success).toBe(true);
+    const message = bad({ API_KEY: "literal" }).error?.issues[0].message;
+    expect(message).toMatch(/reference it as \$\{NAME\}/);
   });
 
   it("appends preapproved tools", () => {

@@ -1,4 +1,4 @@
-Agent Roles starts agents from named role definitions. A role bundles a system prompt, a model, MCP servers, pre-approved tools and provider options, and lives as a YAML or JSON file in your repository instead of being retyped for every agent.
+Agent Roles starts agents from named role definitions. A role bundles a system prompt, provider, model, thinking level and permission mode, MCP server names, pre-approved tools, environment (secrets only as references), an optional cap on concurrent agents and defaults for other plugins, and lives as a YAML or JSON file in your repository instead of being retyped for every agent.
 
 Pass `PASEO_AGENT_ROLE=<name>` in the environment when creating an agent, for example `paseo run --env PASEO_AGENT_ROLE=reviewer`. The plugin rewrites the agent's configuration before it starts. Agents created without the variable are left untouched, and an unknown role name makes creation fail.
 

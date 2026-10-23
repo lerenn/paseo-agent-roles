@@ -77,21 +77,30 @@ modeId: plan                # optional
 thinkingOptionId: high      # optional
 systemPrompt: |             # prepended to any prompt the agent was created with
   You are a code reviewer. ...
-mcpServers:                 # added to the agent; a role server replaces a same-named one
-  docs:
-    type: http              # stdio (command, args, env) | http | sse (url, headers)
-    url: https://example.com/mcp
+mcpServers: [linear, sentry] # MCP servers by name; ["*"] = all (see below)
 preapprovedTools:           # MCP tools usable without asking
-  - { server: docs, tool: search }
+  - { server: linear, tool: get_issue }
 env:                        # agent process env; values passed at creation win
-  PASEO_KUBE_TEMPLATE: my-template
+  LOG_LEVEL: debug
+  GITHUB_TOKEN: ${GH_TOKEN} # secrets: reference the daemon's env, never write them here
+maxConcurrent: 3            # at most 3 agents of this role working at once
+plugins:                    # defaults for other plugins (each optional, see below)
+  kubeTemplate: default
+  warder: on
+  ticket: ANY-1234
 providerOptions:            # provider-specific, merged over the requested ones; use for limits
   maxTurns: 40
 ```
 
-Application rules: scalar fields from the role (`provider`, `model`, `thinkingOptionId`, `modeId`) override what the agent was created with (checked on Paseo 0.13.0-beta.1: a role replaces the requested provider, model, thinking level and mode); `systemPrompt` is prepended; `mcpServers`, `preapprovedTools` and `providerOptions` are merged. The working directory is never changed.
+Application rules: scalar fields from the role (`provider`, `model`, `thinkingOptionId`, `modeId`) override what the agent was created with (checked on Paseo 0.13.0-beta.1: a role replaces the requested provider, model, thinking level and mode); `systemPrompt` is prepended; `preapprovedTools` and `providerOptions` are merged. Environment is layered, lowest first: plugin defaults, MCP names, the role's `env`, then whatever the creator passed with `--env`. The working directory is never changed.
 
-`PASEO_KUBE_TEMPLATE` is the only convention shared with other plugins (kube-agents reads it if installed); this plugin does not depend on or know about them.
+**MCP servers** are names only, so no URL or credential ever sits in a role file. They are passed to an MCP proxy plugin as `PASEO_MCP_SERVERS=linear,sentry` (`*` for all); that plugin injects the servers and their credentials, and an unknown name does not fail creation. Without such a plugin the variable is simply unused.
+
+**Env and secrets.** A value may reference the daemon's environment as `${NAME}`, resolved when the agent starts; a missing variable fails creation saying which one. Role files are refused if they contain a secret: a well-known token shape, or a literal value under a key named like `*_TOKEN`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY` or `*_CREDENTIAL`. Reference those instead.
+
+**Concurrency.** `maxConcurrent: N` caps the agents of the role that are initializing or running (idle and archived agents do not count). Creating one more fails with `Role "x" is at its limit of N concurrent agents`; nothing is queued. The plugin learns which agents run which role when their session opens, and keeps that in `~/.paseo/agent-roles/role-agents.json` so a daemon restart does not forget them.
+
+**Defaults for other plugins** are plain environment those plugins already read, with no dependency on them: `plugins.kubeTemplate` sets `PASEO_KUBE_TEMPLATE` (Kube Agents), `plugins.warder` sets `PASEO_WARDER=on|off` (Agents Warder), `plugins.ticket` sets `PASEO_AGENT_TICKET` (Agents Tickets Sync). Anything else another plugin reads can go in `env`. Agents Warder has no creation-time inactivity timeout to set today.
 
 Paseo has no provider-independent limit setting, so limits go in `providerOptions` using the names your provider expects.
 
