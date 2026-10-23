@@ -1,0 +1,28 @@
+{
+  "name": "paseo-agent-roles",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Start Paseo agents from versioned role definitions.",
+  "license": "MIT",
+  "files": [
+    "paseo-plugin.json",
+    "OVERVIEW.md",
+    "index.server.ts",
+    "server/",
+    "shared/",
+    "roles/",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@getpaseo/plugin": "0.11.2",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0",
+    "zod": "^4.4.3"
+  }
+}
