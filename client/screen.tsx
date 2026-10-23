@@ -8,11 +8,9 @@ import {
   clearTokenRpc,
   createPullRequestRpc,
   deleteGitRoleRpc,
-  deleteRoleRpc,
   listProposalsRpc,
   listRolesRpc,
   saveGitRoleRpc,
-  saveRoleRpc,
   setTokenRpc,
   syncSourcesRpc,
   type GitStatus,
@@ -32,48 +30,26 @@ systemPrompt: |
 #   KEY: value
 `;
 
-/** `gitSourceId` set: the edit is proposed to that git source instead of saved to the user roles. */
-type Editing = { text: string; original: string | null; gitSourceId?: string };
+/** A role being written: the text, and the git source it will be proposed to. */
+type Editing = { text: string; original: string | null; sourceId: string };
 
 export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
-  const paseo = usePaseo();
   const queryClient = useQueryClient();
   const listRoles = useRpc(listRolesRpc);
-  const saveRole = useRpc(saveRoleRpc);
-  const deleteRole = useRpc(deleteRoleRpc);
   const syncSources = useRpc(syncSourcesRpc);
   const saveGitRole = useRpc(saveGitRoleRpc);
   const deleteGitRole = useRpc(deleteGitRoleRpc);
   const listProposals = useRpc(listProposalsRpc);
   const createPr = useRpc(createPullRequestRpc);
-  const [workspaceId, setWorkspaceId] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
 
   const styles = useMemo(() => makeStyles(theme, layout.compact), [theme, layout.compact]);
 
-  const workspaces = useQuery({
-    queryKey: ["agent-roles", "workspaces"],
-    queryFn: async () => (await paseo.workspaces.list()).entries,
-  });
-  const workspace = workspaces.data?.find((w) => w.id === workspaceId) ?? workspaces.data?.[0];
-  const cwd = workspace?.workspaceDirectory ?? workspace?.projectRootPath;
-
-  const roles = useQuery({
-    queryKey: ["agent-roles", "roles", cwd ?? null],
-    queryFn: () => listRoles({ cwd }),
-  });
+  const roles = useQuery({ queryKey: ["agent-roles", "roles"], queryFn: () => listRoles({}) });
+  const sources = roles.data?.git ?? [];
   const entry = roles.data?.roles.find((r) => r.name === selected) ?? null;
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["agent-roles", "roles"] });
-  const save = useMutation({
-    mutationFn: (text: string) => saveRole({ text }),
-    onSuccess: async ({ name }) => {
-      setEditing(null);
-      setSelected(name);
-      await refresh();
-    },
-  });
   const proposals = useQuery({
     queryKey: ["agent-roles", "proposals"],
     queryFn: async () => (await listProposals({})).proposals,
@@ -83,7 +59,7 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
     await queryClient.invalidateQueries({ queryKey: ["agent-roles"] });
   };
   const saveGit = useMutation({
-    mutationFn: (v: { sourceId: string; text: string; promoteFrom?: string }) => saveGitRole(v),
+    mutationFn: (v: { sourceId: string; text: string }) => saveGitRole(v),
     onSuccess: async () => {
       setEditing(null);
       await refreshAll();
@@ -102,44 +78,35 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
   });
   const sync = useMutation({
     mutationFn: () => syncSources({}),
-    onSuccess: refresh,
+    onSuccess: refreshAll,
   });
-  const remove = useMutation({
-    mutationFn: (name: string) => deleteRole({ name }),
-    onSuccess: async () => {
-      setSelected(null);
-      await refresh();
-    },
-  });
+
+  const newRole = () => sources[0] && setEditing({ text: TEMPLATE, original: null, sourceId: sources[0].id });
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.row}>
         <Text style={styles.title}>Agent roles</Text>
-        <Button styles={styles} label="New role" onPress={() => setEditing({ text: TEMPLATE, original: null })} />
+        {sources.length > 0 ? <Button styles={styles} label="New role" onPress={newRole} /> : null}
       </View>
       <Text style={styles.muted}>
-        A role sets an agent's prompt, model, tools and environment when it starts. Select one with {ROLE_ENV}.
+        A role sets an agent's prompt, model, tools and environment when it starts. Roles are loaded from git sources;
+        select one for an agent with {ROLE_ENV}.
       </Text>
 
-      {workspaces.data && workspaces.data.length > 0 ? (
-        <SettingsSelect
-          label="Workspace"
-          hint="Project roles are read from this workspace's .paseo/roles, and new agents start here."
-          value={workspace?.id ?? ""}
-          options={workspaces.data.map((w) => ({ label: `${w.projectDisplayName} / ${w.name}`, value: w.id }))}
-          onValueChange={setWorkspaceId}
-        />
-      ) : null}
-
       {roles.error ? <Text style={styles.error}>{String(roles.error)}</Text> : null}
-      {roles.data ? <Text style={styles.muted}>Your roles are saved in {roles.data.userDir}</Text> : null}
 
-      {roles.data && roles.data.roles.length === 0 ? (
+      {roles.data && sources.length === 0 ? (
         <View style={styles.panel}>
           <Text style={styles.heading}>No roles yet</Text>
-          <Text style={styles.muted}>Create one, or add a git source below.</Text>
-          <Button styles={styles} primary label="New role" onPress={() => setEditing({ text: TEMPLATE, original: null })} />
+          <Text style={styles.muted}>Add a git source to load roles.</Text>
+        </View>
+      ) : null}
+      {roles.data && sources.length > 0 && roles.data.roles.length === 0 ? (
+        <View style={styles.panel}>
+          <Text style={styles.heading}>No roles in your git sources yet</Text>
+          <Text style={styles.muted}>Sync them, or create the first role.</Text>
+          <Button styles={styles} primary label="New role" onPress={newRole} />
         </View>
       ) : null}
 
@@ -167,6 +134,14 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
       {editing ? (
         <View style={styles.panel}>
           <Text style={styles.heading}>{editing.original ? `Edit ${editing.original}` : "New role"}</Text>
+          {sources.length > 1 ? (
+            <SettingsSelect
+              label="Git source"
+              value={editing.sourceId}
+              options={sources.map((s) => ({ label: `${s.label} (${s.writeMode})`, value: s.id }))}
+              onValueChange={(sourceId) => setEditing({ ...editing, sourceId })}
+            />
+          ) : null}
           <TextInput
             multiline
             autoCapitalize="none"
@@ -176,24 +151,17 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
             style={styles.editor}
             accessibilityLabel="Role definition"
           />
-          {editing.gitSourceId ? (
-            <Text style={styles.muted}>
-              Saving commits this change to the git source: as a pull request branch by default, or straight to the branch
-              in push mode.
-            </Text>
-          ) : null}
-          {save.error ? <Text style={styles.error}>{(save.error as Error).message}</Text> : null}
+          <Text style={styles.muted}>
+            Saving commits this to the git source: as a pull request branch by default, or straight to the branch in
+            push mode.
+          </Text>
           {saveGit.error ? <Text style={styles.error}>{(saveGit.error as Error).message}</Text> : null}
           <View style={styles.row}>
             <Button
               styles={styles}
-              label={editing.gitSourceId ? (saveGit.isPending ? "Saving…" : "Save to git") : "Save to user roles"}
+              label={saveGit.isPending ? "Saving…" : "Save to git"}
               primary
-              onPress={() =>
-                editing.gitSourceId
-                  ? saveGit.mutate({ sourceId: editing.gitSourceId, text: editing.text })
-                  : save.mutate(editing.text)
-              }
+              onPress={() => saveGit.mutate({ sourceId: editing.sourceId, text: editing.text })}
             />
             <Button styles={styles} label="Cancel" onPress={() => setEditing(null)} />
           </View>
@@ -202,25 +170,12 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
         <Detail
           entry={entry}
           styles={styles}
-          sources={roles.data?.git ?? []}
-          onEdit={() => setEditing({ text: entry.text, original: entry.source === "user" ? entry.name : null })}
-          onEditGit={() => setEditing({ text: entry.text, original: entry.name, gitSourceId: entry.sourceId })}
-          onDelete={() => remove.mutate(entry.name)}
-          onDeleteGit={() => entry.sourceId && deleteGit.mutate({ sourceId: entry.sourceId, name: entry.name })}
-          onPromote={(sourceId) => saveGit.mutate({ sourceId, text: entry.text, promoteFrom: entry.name })}
-          gitBusy={saveGit.isPending || deleteGit.isPending}
-          deleteError={
-            remove.error
-              ? (remove.error as Error).message
-              : deleteGit.error
-                ? (deleteGit.error as Error).message
-                : saveGit.error
-                  ? (saveGit.error as Error).message
-                  : null
-          }
-          workspaceId={workspace?.id}
+          onEdit={() => setEditing({ text: entry.text, original: entry.name, sourceId: entry.sourceId })}
+          onDelete={() => deleteGit.mutate({ sourceId: entry.sourceId, name: entry.name })}
+          busy={deleteGit.isPending}
+          error={deleteGit.error ? (deleteGit.error as Error).message : null}
           navigation={navigation}
-          gitStatus={roles.data?.git.find((g) => g.label === entry.origin)}
+          gitStatus={sources.find((g) => g.id === entry.sourceId)}
         />
       ) : null}
 
@@ -230,12 +185,12 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
         busyId={openPr.isPending ? openPr.variables : undefined}
         error={openPr.error ? (openPr.error as Error).message : null}
         onCreatePr={(id) => openPr.mutate(id)}
-        hasToken={(sourceId) => roles.data?.git.find((g) => g.id === sourceId)?.hasToken ?? false}
+        hasToken={(sourceId) => sources.find((g) => g.id === sourceId)?.hasToken ?? false}
       />
 
       <GitSourcesPanel
         styles={styles}
-        statuses={roles.data?.git ?? []}
+        statuses={sources}
         syncing={sync.isPending}
         onSync={() => sync.mutate()}
         onSaved={refreshAll}
@@ -249,15 +204,10 @@ type Styles = ReturnType<typeof makeStyles>;
 function Detail(props: {
   entry: RoleEntry;
   styles: Styles;
-  sources: GitStatus[];
   onEdit(): void;
-  onEditGit(): void;
   onDelete(): void;
-  onDeleteGit(): void;
-  onPromote(sourceId: string): void;
-  gitBusy: boolean;
-  deleteError: string | null;
-  workspaceId?: string;
+  busy: boolean;
+  error: string | null;
   navigation: PluginScreenProps["navigation"];
   gitStatus?: GitStatus;
 }) {
@@ -273,14 +223,12 @@ function Detail(props: {
         <Text style={styles.heading}>{entry.name}</Text>
         <Text style={styles.badge}>{entry.origin}</Text>
       </View>
-      {entry.file ? <Text style={styles.muted}>{entry.file}</Text> : null}
-      {entry.source === "git" ? (
-        <Text style={props.gitStatus?.error ? styles.error : styles.muted}>
-          {gitStatusText(props.gitStatus)} Edits are proposed to the repository ({props.gitStatus?.writeMode ?? "pull-request"} mode).
-        </Text>
-      ) : null}
+      <Text style={styles.muted}>{entry.file}</Text>
+      <Text style={props.gitStatus?.error ? styles.error : styles.muted}>
+        {gitStatusText(props.gitStatus)} Edits are proposed to the repository ({props.gitStatus?.writeMode ?? "pull-request"} mode).
+      </Text>
       {entry.overrides.length > 0 ? (
-        <Text style={styles.muted}>Overrides the {entry.overrides.join(" and ")} role of the same name.</Text>
+        <Text style={styles.muted}>Hides the role of the same name in {entry.overrides.join(" and ")}.</Text>
       ) : null}
       {entry.error ? <Text style={styles.error}>{entry.error}</Text> : null}
       {role ? (
@@ -293,30 +241,11 @@ function Detail(props: {
         </>
       ) : null}
       <View style={styles.row}>
-        {entry.source === "git" ? (
-          <>
-            <Button styles={styles} label="Edit in git" onPress={props.onEditGit} />
-            <Button styles={styles} label="Copy to user roles" onPress={props.onEdit} />
-            <Button styles={styles} label="Delete from git" onPress={props.onDeleteGit} />
-          </>
-        ) : (
-          <>
-            <Button
-              styles={styles}
-              label={entry.source === "user" ? "Edit" : "Copy to user roles"}
-              onPress={props.onEdit}
-            />
-            {entry.source === "user" ? <Button styles={styles} label="Delete" onPress={props.onDelete} /> : null}
-          </>
-        )}
+        <Button styles={styles} label="Edit" onPress={props.onEdit} />
+        <Button styles={styles} label={props.busy ? "Deleting…" : "Delete"} onPress={props.onDelete} />
       </View>
-      {entry.source === "user" && props.sources.length > 0 ? (
-        <PromoteToGit sources={props.sources} busy={props.gitBusy} styles={styles} onPromote={props.onPromote} />
-      ) : null}
-      {props.deleteError ? <Text style={styles.error}>{props.deleteError}</Text> : null}
-      {role && props.workspaceId ? (
-        <StartAgent entry={entry} workspaceId={props.workspaceId} styles={styles} navigation={props.navigation} />
-      ) : null}
+      {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
+      {role ? <StartAgent entry={entry} styles={styles} navigation={props.navigation} /> : null}
     </View>
   );
 }
@@ -390,7 +319,7 @@ function GitSourcesPanel(props: {
         <Button styles={styles} label={props.syncing ? "Syncing…" : "Sync now"} onPress={props.onSync} />
       </View>
       <Text style={styles.muted}>
-        Roles are loaded from a folder of each repository, after your project and user roles. Repositories are cloned
+        Roles are loaded from a folder of each repository; a role in an earlier source wins. Repositories are cloned
         and pushed with the daemon's own git credentials (for example its SSH key). Edits you save here become a
         pull request or a push, depending on each source's mode.
       </Text>
@@ -444,31 +373,6 @@ function GitSourcesPanel(props: {
   );
 }
 
-function PromoteToGit(props: { sources: GitStatus[]; busy: boolean; styles: Styles; onPromote(sourceId: string): void }) {
-  const [sourceId, setSourceId] = useState("");
-  const chosen = props.sources.find((s) => s.id === sourceId) ?? props.sources[0];
-  return (
-    <View style={props.styles.startBox}>
-      <Text style={props.styles.heading}>Save to git</Text>
-      <Text style={props.styles.muted}>
-        Adds this role to a git source so others get it. The local copy is removed once the change is merged and synced.
-      </Text>
-      <SettingsSelect
-        label="Git source"
-        value={chosen.id}
-        options={props.sources.map((s) => ({ label: `${s.label} (${s.writeMode})`, value: s.id }))}
-        onValueChange={setSourceId}
-      />
-      <Button
-        styles={props.styles}
-        primary
-        label={props.busy ? "Saving…" : chosen.writeMode === "push" ? "Push to git" : "Propose via pull request"}
-        onPress={() => props.onPromote(chosen.id)}
-      />
-    </View>
-  );
-}
-
 function ProposalsPanel(props: {
   styles: Styles;
   proposals: Proposal[];
@@ -491,11 +395,6 @@ function ProposalsPanel(props: {
             {p.branch ? ` on ${p.branch}` : ` pushed to ${p.base}`}
           </Text>
           {p.fellBack ? <Text style={styles.muted}>Push was rejected ({p.fellBack}); proposed as a branch instead.</Text> : null}
-          {p.promotedFrom ? (
-            <Text style={styles.muted}>
-              {p.localCopyRemoved ? "Local copy removed after merge." : "Local copy is kept until this is merged and synced."}
-            </Text>
-          ) : null}
           {p.pr ? (
             <ExternalLink href={p.pr.url}>{`PR #${p.pr.number} (${p.pr.state}) - open`}</ExternalLink>
           ) : p.outcome === "branch" ? (
@@ -569,24 +468,25 @@ function Field({ styles, label, value }: { styles: Styles; label: string; value:
   );
 }
 
-function StartAgent(props: {
-  entry: RoleEntry;
-  workspaceId: string;
-  styles: Styles;
-  navigation: PluginScreenProps["navigation"];
-}) {
+function StartAgent(props: { entry: RoleEntry; styles: Styles; navigation: PluginScreenProps["navigation"] }) {
   const { entry, styles } = props;
   const paseo = usePaseo();
+  const [workspaceId, setWorkspaceId] = useState("");
   const [provider, setProvider] = useState<string>("");
   const [prompt, setPrompt] = useState("");
+  const workspaces = useQuery({
+    queryKey: ["agent-roles", "workspaces"],
+    queryFn: async () => (await paseo.workspaces.list()).entries,
+  });
   const providers = useQuery({
     queryKey: ["agent-roles", "providers"],
     queryFn: async () => (await paseo.providers.listAvailable()).providers.filter((p) => p.available).map((p) => p.provider),
   });
+  const workspace = workspaces.data?.find((w) => w.id === workspaceId) ?? workspaces.data?.[0];
   const chosen = provider || entry.role?.provider || providers.data?.[0] || "";
   const start = useMutation({
     mutationFn: async () => {
-      const agent = await paseo.workspaces.ref(props.workspaceId).agents.create({
+      const agent = await paseo.workspaces.ref(workspace!.id).agents.create({
         config: { provider: chosen },
         prompt: prompt.trim() || undefined,
         env: { [ROLE_ENV]: entry.name },
@@ -599,6 +499,12 @@ function StartAgent(props: {
   return (
     <View style={styles.startBox}>
       <Text style={styles.heading}>New agent with this role</Text>
+      <SettingsSelect
+        label="Workspace"
+        value={workspace?.id ?? ""}
+        options={(workspaces.data ?? []).map((w) => ({ label: `${w.projectDisplayName} / ${w.name}`, value: w.id }))}
+        onValueChange={setWorkspaceId}
+      />
       <SettingsSelect
         label="Provider"
         hint={entry.role?.provider ? "The role sets the provider." : undefined}
@@ -613,7 +519,7 @@ function StartAgent(props: {
         styles={styles}
         primary
         label={start.isPending ? "Starting…" : "Start agent"}
-        onPress={() => chosen && start.mutate()}
+        onPress={() => chosen && workspace && start.mutate()}
       />
     </View>
   );

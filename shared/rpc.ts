@@ -2,13 +2,9 @@ import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 import { roleSchema } from "./role";
 
-export const roleSourceSchema = z.enum(["project", "user", "git"]);
-export type RoleSource = z.infer<typeof roleSourceSchema>;
-
 export const roleEntrySchema = z.object({
   name: z.string(),
-  source: roleSourceSchema,
-  /** Human label of the source, e.g. "git: https://host/repo.git@main". */
+  /** Label of the git source, e.g. "git: https://host/repo.git@main". */
   origin: z.string(),
   /** Absolute file path. */
   file: z.string().optional(),
@@ -17,9 +13,9 @@ export const roleEntrySchema = z.object({
   /** Parsed role, or why the file is invalid. */
   role: roleSchema.optional(),
   error: z.string().optional(),
-  /** For git roles: the source that holds it, as in GitStatus.id. */
-  sourceId: z.string().optional(),
-  /** Lower-priority sources hidden by this entry. */
+  /** The git source that holds it, as in GitStatus.id. */
+  sourceId: z.string(),
+  /** Later git sources that hold a role of the same name, which this one hides. */
   overrides: z.array(z.string()),
 });
 export type RoleEntry = z.infer<typeof roleEntrySchema>;
@@ -46,10 +42,9 @@ export type GitStatus = z.infer<typeof gitStatusSchema>;
 
 export const listRolesRpc = defineRpc({
   name: "roles.list",
-  input: z.object({ cwd: z.string().optional() }),
+  input: z.object({}),
   output: z.object({
     roles: z.array(roleEntrySchema),
-    userDir: z.string(),
     git: z.array(gitStatusSchema),
   }),
 });
@@ -58,18 +53,6 @@ export const syncSourcesRpc = defineRpc({
   name: "roles.sync",
   input: z.object({}),
   output: z.object({ git: z.array(gitStatusSchema) }),
-});
-
-export const saveRoleRpc = defineRpc({
-  name: "roles.save",
-  input: z.object({ text: z.string() }),
-  output: z.object({ name: z.string(), file: z.string() }),
-});
-
-export const deleteRoleRpc = defineRpc({
-  name: "roles.delete",
-  input: z.object({ name: z.string() }),
-  output: z.object({}),
 });
 
 export const pullRequestSchema = z.object({
@@ -99,15 +82,12 @@ export const proposalSchema = z.object({
   fellBack: z.string().optional(),
   pr: pullRequestSchema.optional(),
   prError: z.string().optional(),
-  /** Set when a user role was promoted to git: the local copy goes away once the git copy matches. */
-  promotedFrom: z.string().optional(),
-  localCopyRemoved: z.boolean().optional(),
 });
 export type Proposal = z.infer<typeof proposalSchema>;
 
 export const saveGitRoleRpc = defineRpc({
   name: "roles.git.save",
-  input: z.object({ sourceId: z.string(), text: z.string(), promoteFrom: z.string().optional() }),
+  input: z.object({ sourceId: z.string(), text: z.string() }),
   output: z.object({ proposal: proposalSchema }),
 });
 

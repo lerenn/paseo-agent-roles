@@ -1,25 +1,22 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { roleNameSchema } from "../shared/role";
-import type { RoleEntry, RoleSource } from "../shared/rpc";
-import { describeError, EXTENSIONS, parseRole, parseRoleText, projectRolesPath, userRolesDir } from "./loader";
+import type { RoleEntry } from "../shared/rpc";
+import { describeError, EXTENSIONS, parseRole } from "./loader";
 
 export interface GitLayer {
+  /** Stable id of the git source, as in GitStatus.id. */
+  id: string;
   /** Display label, e.g. "git: https://host/repo.git@main". */
   label: string;
+  /** The source's roles folder inside its local clone. */
   dir: string;
 }
 
-export interface CatalogDirs {
-  user: string;
-  /** Git source folders, in precedence order. */
-  git?: GitLayer[];
-}
-
-async function readDir(dir: string, source: RoleSource, origin: string = source): Promise<Omit<RoleEntry, "overrides">[]> {
+async function readDir(layer: GitLayer): Promise<Omit<RoleEntry, "overrides">[]> {
   let files: string[];
   try {
-    files = await readdir(dir);
+    files = await readdir(layer.dir);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
@@ -32,63 +29,27 @@ async function readDir(dir: string, source: RoleSource, origin: string = source)
     if (!roleNameSchema.safeParse(name).success) continue;
     // loadRole tries .yaml, .yml, .json in that order; a later duplicate is unreachable.
     if (entries.some((entry) => entry.name === name)) continue;
-    const file = path.join(dir, base);
+    const file = path.join(layer.dir, base);
     const text = await readFile(file, "utf8");
+    const common = { name, origin: layer.label, sourceId: layer.id, file, text };
     try {
-      entries.push({ name, source, origin, file, text, role: parseRole(text, file) });
+      entries.push({ ...common, role: parseRole(text, file) });
     } catch (error) {
-      entries.push({ name, source, origin, file, text, error: describeError(error) });
+      entries.push({ ...common, error: describeError(error) });
     }
   }
   return entries;
 }
 
-/** All roles visible from `cwd`, one entry per name, highest-priority source first. */
-export async function listRoles(
-  cwd: string | undefined,
-  dirs: CatalogDirs = { user: userRolesDir },
-): Promise<RoleEntry[]> {
-  const layers: Omit<RoleEntry, "overrides">[][] = [
-    cwd ? await readDir(path.join(cwd, projectRolesPath), "project") : [],
-    await readDir(dirs.user, "user"),
-    ...(await Promise.all((dirs.git ?? []).map((g) => readDir(g.dir, "git", g.label)))),
-  ];
+/** All roles from the git sources, one entry per name; an earlier source wins. */
+export async function listRoles(layers: GitLayer[]): Promise<RoleEntry[]> {
   const byName = new Map<string, RoleEntry>();
   for (const layer of layers) {
-    for (const entry of layer) {
+    for (const entry of await readDir(layer)) {
       const winner = byName.get(entry.name);
       if (winner) winner.overrides.push(entry.origin);
       else byName.set(entry.name, { ...entry, overrides: [] });
     }
   }
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
-
-/** Validate role text and write it to the user roles directory as <name>.yaml. */
-export async function saveUserRole(
-  text: string,
-  dirs: CatalogDirs = { user: userRolesDir },
-): Promise<{ name: string; file: string }> {
-  let role;
-  try {
-    role = parseRoleText(text);
-  } catch (error) {
-    throw new Error(describeError(error));
-  }
-  const file = path.join(dirs.user, `${role.name}.yaml`);
-  await mkdir(dirs.user, { recursive: true });
-  await writeFile(file, text.endsWith("\n") ? text : `${text}\n`);
-  await removeUserFiles(role.name, dirs, file);
-  return { name: role.name, file };
-}
-
-export async function deleteUserRole(name: string, dirs: CatalogDirs = { user: userRolesDir }) {
-  await removeUserFiles(roleNameSchema.parse(name), dirs);
-}
-
-async function removeUserFiles(name: string, dirs: CatalogDirs, keep?: string) {
-  for (const ext of EXTENSIONS) {
-    const file = path.join(dirs.user, name + ext);
-    if (file !== keep) await rm(file, { force: true });
-  }
 }

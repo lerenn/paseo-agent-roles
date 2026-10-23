@@ -1,15 +1,11 @@
-import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
-import path from "node:path";
-import { isDeepStrictEqual } from "node:util";
 import { roleNameSchema } from "../shared/role";
 import type { GitStatus, Proposal } from "../shared/rpc";
 import type { GitSource } from "../shared/settings";
-import { type CatalogDirs, listRoles } from "./catalog";
+import { listRoles } from "./catalog";
 import { forgeFor, type Forge } from "./forge";
 import { type Change, type WriteResult, writeChange } from "./git-write";
 import { GitSources, sourceLabel } from "./git-sync";
-import { describeError, EXTENSIONS, loadRole, parseRoleText } from "./loader";
+import { describeError, parseRoleText } from "./loader";
 import type { ProposalStore } from "./proposals";
 import { scrub, type TokenStore } from "./tokens";
 
@@ -19,7 +15,6 @@ export interface ServiceDeps {
   proposals: ProposalStore;
   /** Configured git sources, read fresh on each call. */
   configured(): Promise<GitSource[]>;
-  userDir: string;
   forges?: Forge[];
 }
 
@@ -51,19 +46,15 @@ export class RolesService {
     }));
   }
 
-  /** Roles visible from `cwd`, with git roles tagged by their source. */
-  async list(cwd: string | undefined, dirs: CatalogDirs) {
+  /** Roles from the configured git sources. */
+  async list() {
     const sources = await this.deps.configured();
-    await this.reconcilePromotions(sources);
-    const roles = await listRoles(cwd, dirs);
-    for (const entry of roles) {
-      if (entry.source !== "git") continue;
-      entry.sourceId = sources.map((s) => this.id(s)).find((id, i) => sourceLabel(sources[i]) === entry.origin);
-    }
-    return roles;
+    return listRoles(
+      sources.map((s) => ({ id: this.id(s), label: sourceLabel(s), dir: this.deps.sources.rolesDir(s) })),
+    );
   }
 
-  async save(sourceId: string, text: string, promoteFrom?: string): Promise<Proposal> {
+  async save(sourceId: string, text: string): Promise<Proposal> {
     const source = await this.find(sourceId);
     let role;
     try {
@@ -72,7 +63,7 @@ export class RolesService {
       throw new Error(describeError(error));
     }
     const result = await this.write(source, { name: role.name, text });
-    return this.record(source, role.name, result, promoteFrom);
+    return this.record(source, role.name, result);
   }
 
   async remove(sourceId: string, name: string): Promise<Proposal> {
@@ -91,7 +82,7 @@ export class RolesService {
     }
   }
 
-  private record(source: GitSource, role: string, result: WriteResult, promotedFrom?: string): Proposal {
+  private record(source: GitSource, role: string, result: WriteResult): Proposal {
     const title = result.message;
     const body = [
       "Proposed from the Paseo Agent roles plugin.",
@@ -118,7 +109,6 @@ export class RolesService {
       files: result.files,
       compareUrl,
       fellBack: result.fellBack,
-      promotedFrom,
     });
   }
 
@@ -164,34 +154,6 @@ export class RolesService {
         // keep the last known state; the next refresh retries
       }
     }
-    await this.reconcilePromotions(sources);
     return this.deps.proposals.list();
-  }
-
-  /**
-   * A role promoted from the user directory is redundant once the git copy (after the pull request
-   * is merged and the source synced) matches it. Remove the local copy then; never before.
-   */
-  private async reconcilePromotions(sources: GitSource[]) {
-    for (const p of this.deps.proposals.list()) {
-      if (!p.promotedFrom || p.localCopyRemoved || p.action === "delete") continue;
-      const source = sources.find((s) => this.id(s) === p.sourceId);
-      if (!source) continue;
-      const userFile = EXTENSIONS.map((e) => path.join(this.deps.userDir, p.promotedFrom + e)).find(existsSync);
-      if (!userFile) {
-        this.deps.proposals.update(p.id, { localCopyRemoved: true });
-        continue;
-      }
-      try {
-        const local = parseRoleText(await readFile(userFile, "utf8"));
-        const remote = await loadRole(p.role, [this.deps.sources.rolesDir(source)]);
-        if (remote && isDeepStrictEqual(local, remote)) {
-          await rm(userFile);
-          this.deps.proposals.update(p.id, { localCopyRemoved: true });
-        }
-      } catch {
-        // unreadable or not yet synced: keep the local copy
-      }
-    }
   }
 }
