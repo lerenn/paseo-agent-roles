@@ -5,7 +5,10 @@ import { mkdir, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { GitSource } from "../shared/settings";
+import type { GitSource as ConfiguredSource } from "../shared/settings";
+
+/** What syncing needs to know about a source. */
+type GitSource = Pick<ConfiguredSource, "url" | "ref" | "path" | "intervalMinutes">;
 
 const execFileAsync = promisify(execFile);
 
@@ -17,8 +20,8 @@ export interface SyncStatus {
   syncing: boolean;
 }
 
-/** Runs `git <args>`; rejects with the failure message. Injectable for tests. */
-export type GitRunner = (args: string[]) => Promise<void>;
+/** Runs `git <args>` and returns stdout; rejects with the failure message. Injectable for tests. */
+export type GitRunner = (args: string[]) => Promise<string | void>;
 
 /** The URL without any user:password@ part, for display and error messages. */
 export function redactUrl(text: string): string {
@@ -29,9 +32,9 @@ export function sourceLabel(source: Pick<GitSource, "url" | "ref">): string {
   return `git: ${redactUrl(source.url)}@${source.ref || "HEAD"}`;
 }
 
-const runGit: GitRunner = async (args) => {
+export const runGit = async (args: string[]): Promise<string> => {
   try {
-    await execFileAsync("git", args, {
+    const { stdout } = await execFileAsync("git", args, {
       timeout: 120_000,
       env: {
         ...process.env,
@@ -40,6 +43,7 @@ const runGit: GitRunner = async (args) => {
         GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? "ssh -o BatchMode=yes",
       },
     });
+    return stdout;
   } catch (error) {
     const e = error as { stderr?: string; message: string };
     const detail = (e.stderr?.trim() || e.message).split("\n").filter(Boolean).slice(-2).join(" ");
@@ -54,15 +58,16 @@ const runGit: GitRunner = async (args) => {
 export class GitSources {
   private readonly statuses = new Map<string, SyncStatus>();
   private readonly inflight = new Map<string, Promise<SyncStatus>>();
+  private readonly locks = new Map<string, Promise<unknown>>();
   private timers: ReturnType<typeof setInterval>[] = [];
 
   constructor(
     private readonly root: string = gitCacheRoot,
-    private readonly git: GitRunner = runGit,
+    readonly git: GitRunner = runGit,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  private key(source: GitSource): string {
+  key(source: GitSource): string {
     return createHash("sha256").update(`${source.url}\0${source.ref ?? ""}`).digest("hex").slice(0, 16);
   }
 
@@ -87,9 +92,16 @@ export class GitSources {
     const key = this.key(source);
     const running = this.inflight.get(key);
     if (running) return running;
-    const run = this.doSync(source, key).finally(() => this.inflight.delete(key));
+    const run = this.exclusive(key, () => this.doSync(source, key)).finally(() => this.inflight.delete(key));
     this.inflight.set(key, run);
     return run;
+  }
+
+  /** Run `fn` after every earlier exclusive task for the same source, so a sync never races a write. */
+  exclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const result = (this.locks.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
+    this.locks.set(key, result);
+    return result;
   }
 
   private async doSync(source: GitSource, key: string): Promise<SyncStatus> {

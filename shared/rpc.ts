@@ -17,13 +17,22 @@ export const roleEntrySchema = z.object({
   /** Parsed role, or why the file is invalid. */
   role: roleSchema.optional(),
   error: z.string().optional(),
+  /** For git roles: the source that holds it, as in GitStatus.id. */
+  sourceId: z.string().optional(),
   /** Lower-priority sources hidden by this entry. */
   overrides: z.array(z.string()),
 });
 export type RoleEntry = z.infer<typeof roleEntrySchema>;
 
 export const gitStatusSchema = z.object({
+  /** Stable id of the source, used by write and token calls. */
+  id: z.string(),
   label: z.string(),
+  writeMode: z.enum(["pull-request", "push"]),
+  /** Detected forge for pull requests ("github"), or null when none is supported. */
+  forge: z.string().nullable(),
+  /** Whether a forge token is stored for this source. The token itself is never returned. */
+  hasToken: z.boolean(),
   url: z.string(),
   ref: z.string().optional(),
   path: z.string().optional(),
@@ -60,5 +69,74 @@ export const saveRoleRpc = defineRpc({
 export const deleteRoleRpc = defineRpc({
   name: "roles.delete",
   input: z.object({ name: z.string() }),
+  output: z.object({}),
+});
+
+export const pullRequestSchema = z.object({
+  number: z.number(),
+  url: z.string(),
+  state: z.enum(["open", "closed", "merged"]),
+});
+
+/** A change written to a git source: committed to its branch, or pushed to a branch for review. */
+export const proposalSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  sourceId: z.string(),
+  sourceLabel: z.string(),
+  role: z.string(),
+  action: z.enum(["create", "update", "delete"]),
+  outcome: z.enum(["pushed", "branch"]),
+  commit: z.string(),
+  branch: z.string().optional(),
+  base: z.string(),
+  title: z.string(),
+  body: z.string(),
+  files: z.array(z.string()),
+  /** Prefilled "new pull request" page; works without a token. */
+  compareUrl: z.string().optional(),
+  /** Why push mode fell back to a branch. */
+  fellBack: z.string().optional(),
+  pr: pullRequestSchema.optional(),
+  prError: z.string().optional(),
+  /** Set when a user role was promoted to git: the local copy goes away once the git copy matches. */
+  promotedFrom: z.string().optional(),
+  localCopyRemoved: z.boolean().optional(),
+});
+export type Proposal = z.infer<typeof proposalSchema>;
+
+export const saveGitRoleRpc = defineRpc({
+  name: "roles.git.save",
+  input: z.object({ sourceId: z.string(), text: z.string(), promoteFrom: z.string().optional() }),
+  output: z.object({ proposal: proposalSchema }),
+});
+
+export const deleteGitRoleRpc = defineRpc({
+  name: "roles.git.delete",
+  input: z.object({ sourceId: z.string(), name: z.string() }),
+  output: z.object({ proposal: proposalSchema }),
+});
+
+export const listProposalsRpc = defineRpc({
+  name: "roles.proposals.list",
+  input: z.object({}),
+  output: z.object({ proposals: z.array(proposalSchema) }),
+});
+
+export const createPullRequestRpc = defineRpc({
+  name: "roles.proposals.create-pr",
+  input: z.object({ id: z.string() }),
+  output: z.object({ proposal: proposalSchema }),
+});
+
+export const setTokenRpc = defineRpc({
+  name: "roles.token.set",
+  input: z.object({ sourceId: z.string(), token: z.string().min(1).max(8192) }),
+  output: z.object({}),
+});
+
+export const clearTokenRpc = defineRpc({
+  name: "roles.token.clear",
+  input: z.object({ sourceId: z.string() }),
   output: z.object({}),
 });

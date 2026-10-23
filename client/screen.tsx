@@ -1,10 +1,24 @@
 import { usePaseo, useRpc, useSettings, type PluginScreenProps } from "@getpaseo/plugin/client";
-import { SettingsInput, SettingsSelect } from "@getpaseo/plugin/client/ui";
+import { ExternalLink, SettingsInput, SettingsSelect } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ROLE_ENV } from "../shared/role";
-import { deleteRoleRpc, listRolesRpc, saveRoleRpc, syncSourcesRpc, type GitStatus, type RoleEntry } from "../shared/rpc";
+import {
+  clearTokenRpc,
+  createPullRequestRpc,
+  deleteGitRoleRpc,
+  deleteRoleRpc,
+  listProposalsRpc,
+  listRolesRpc,
+  saveGitRoleRpc,
+  saveRoleRpc,
+  setTokenRpc,
+  syncSourcesRpc,
+  type GitStatus,
+  type Proposal,
+  type RoleEntry,
+} from "../shared/rpc";
 import { DEFAULT_SYNC_MINUTES, gitSourceSchema, rolesSettings, type GitSource } from "../shared/settings";
 
 const TEMPLATE = `name: my-role
@@ -18,7 +32,8 @@ systemPrompt: |
 #   KEY: value
 `;
 
-type Editing = { text: string; original: string | null };
+/** `gitSourceId` set: the edit is proposed to that git source instead of saved to the user roles. */
+type Editing = { text: string; original: string | null; gitSourceId?: string };
 
 export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
   const paseo = usePaseo();
@@ -27,6 +42,10 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
   const saveRole = useRpc(saveRoleRpc);
   const deleteRole = useRpc(deleteRoleRpc);
   const syncSources = useRpc(syncSourcesRpc);
+  const saveGitRole = useRpc(saveGitRoleRpc);
+  const deleteGitRole = useRpc(deleteGitRoleRpc);
+  const listProposals = useRpc(listProposalsRpc);
+  const createPr = useRpc(createPullRequestRpc);
   const [workspaceId, setWorkspaceId] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -54,6 +73,32 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
       setSelected(name);
       await refresh();
     },
+  });
+  const proposals = useQuery({
+    queryKey: ["agent-roles", "proposals"],
+    queryFn: async () => (await listProposals({})).proposals,
+    refetchInterval: 30_000,
+  });
+  const refreshAll = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["agent-roles"] });
+  };
+  const saveGit = useMutation({
+    mutationFn: (v: { sourceId: string; text: string; promoteFrom?: string }) => saveGitRole(v),
+    onSuccess: async () => {
+      setEditing(null);
+      await refreshAll();
+    },
+  });
+  const deleteGit = useMutation({
+    mutationFn: (v: { sourceId: string; name: string }) => deleteGitRole(v),
+    onSuccess: async () => {
+      setSelected(null);
+      await refreshAll();
+    },
+  });
+  const openPr = useMutation({
+    mutationFn: (id: string) => createPr({ id }),
+    onSettled: refreshAll,
   });
   const sync = useMutation({
     mutationFn: () => syncSources({}),
@@ -123,9 +168,25 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
             style={styles.editor}
             accessibilityLabel="Role definition"
           />
+          {editing.gitSourceId ? (
+            <Text style={styles.muted}>
+              Saving commits this change to the git source: as a pull request branch by default, or straight to the branch
+              in push mode.
+            </Text>
+          ) : null}
           {save.error ? <Text style={styles.error}>{(save.error as Error).message}</Text> : null}
+          {saveGit.error ? <Text style={styles.error}>{(saveGit.error as Error).message}</Text> : null}
           <View style={styles.row}>
-            <Button styles={styles} label="Save to user roles" primary onPress={() => save.mutate(editing.text)} />
+            <Button
+              styles={styles}
+              label={editing.gitSourceId ? (saveGit.isPending ? "Saving…" : "Save to git") : "Save to user roles"}
+              primary
+              onPress={() =>
+                editing.gitSourceId
+                  ? saveGit.mutate({ sourceId: editing.gitSourceId, text: editing.text })
+                  : save.mutate(editing.text)
+              }
+            />
             <Button styles={styles} label="Cancel" onPress={() => setEditing(null)} />
           </View>
         </View>
@@ -133,21 +194,43 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
         <Detail
           entry={entry}
           styles={styles}
+          sources={roles.data?.git ?? []}
           onEdit={() => setEditing({ text: entry.text, original: entry.source === "user" ? entry.name : null })}
+          onEditGit={() => setEditing({ text: entry.text, original: entry.name, gitSourceId: entry.sourceId })}
           onDelete={() => remove.mutate(entry.name)}
-          deleteError={remove.error ? (remove.error as Error).message : null}
+          onDeleteGit={() => entry.sourceId && deleteGit.mutate({ sourceId: entry.sourceId, name: entry.name })}
+          onPromote={(sourceId) => saveGit.mutate({ sourceId, text: entry.text, promoteFrom: entry.name })}
+          gitBusy={saveGit.isPending || deleteGit.isPending}
+          deleteError={
+            remove.error
+              ? (remove.error as Error).message
+              : deleteGit.error
+                ? (deleteGit.error as Error).message
+                : saveGit.error
+                  ? (saveGit.error as Error).message
+                  : null
+          }
           workspaceId={workspace?.id}
           navigation={navigation}
           gitStatus={roles.data?.git.find((g) => g.label === entry.origin)}
         />
       ) : null}
 
+      <ProposalsPanel
+        styles={styles}
+        proposals={proposals.data ?? []}
+        busyId={openPr.isPending ? openPr.variables : undefined}
+        error={openPr.error ? (openPr.error as Error).message : null}
+        onCreatePr={(id) => openPr.mutate(id)}
+        hasToken={(sourceId) => roles.data?.git.find((g) => g.id === sourceId)?.hasToken ?? false}
+      />
+
       <GitSourcesPanel
         styles={styles}
         statuses={roles.data?.git ?? []}
         syncing={sync.isPending}
         onSync={() => sync.mutate()}
-        onSaved={refresh}
+        onSaved={refreshAll}
       />
     </ScrollView>
   );
@@ -158,8 +241,13 @@ type Styles = ReturnType<typeof makeStyles>;
 function Detail(props: {
   entry: RoleEntry;
   styles: Styles;
+  sources: GitStatus[];
   onEdit(): void;
+  onEditGit(): void;
   onDelete(): void;
+  onDeleteGit(): void;
+  onPromote(sourceId: string): void;
+  gitBusy: boolean;
   deleteError: string | null;
   workspaceId?: string;
   navigation: PluginScreenProps["navigation"];
@@ -180,7 +268,7 @@ function Detail(props: {
       {entry.file ? <Text style={styles.muted}>{entry.file}</Text> : null}
       {entry.source === "git" ? (
         <Text style={props.gitStatus?.error ? styles.error : styles.muted}>
-          {gitStatusText(props.gitStatus)} Read-only: copy it to your user roles to change it.
+          {gitStatusText(props.gitStatus)} Edits are proposed to the repository ({props.gitStatus?.writeMode ?? "pull-request"} mode).
         </Text>
       ) : null}
       {entry.overrides.length > 0 ? (
@@ -197,13 +285,26 @@ function Detail(props: {
         </>
       ) : null}
       <View style={styles.row}>
-        <Button
-          styles={styles}
-          label={entry.source === "user" ? "Edit" : "Copy to user roles"}
-          onPress={props.onEdit}
-        />
-        {entry.source === "user" ? <Button styles={styles} label="Delete" onPress={props.onDelete} /> : null}
+        {entry.source === "git" ? (
+          <>
+            <Button styles={styles} label="Edit in git" onPress={props.onEditGit} />
+            <Button styles={styles} label="Copy to user roles" onPress={props.onEdit} />
+            <Button styles={styles} label="Delete from git" onPress={props.onDeleteGit} />
+          </>
+        ) : (
+          <>
+            <Button
+              styles={styles}
+              label={entry.source === "user" ? "Edit" : "Copy to user roles"}
+              onPress={props.onEdit}
+            />
+            {entry.source === "user" ? <Button styles={styles} label="Delete" onPress={props.onDelete} /> : null}
+          </>
+        )}
       </View>
+      {entry.source === "user" && props.sources.length > 0 ? (
+        <PromoteToGit sources={props.sources} busy={props.gitBusy} styles={styles} onPromote={props.onPromote} />
+      ) : null}
       {props.deleteError ? <Text style={styles.error}>{props.deleteError}</Text> : null}
       {role && props.workspaceId ? (
         <StartAgent entry={entry} workspaceId={props.workspaceId} styles={styles} navigation={props.navigation} />
@@ -219,7 +320,7 @@ function gitStatusText(status?: GitStatus): string {
   return `${status.syncing ? "Syncing… " : ""}${synced}${failure}`;
 }
 
-type Draft = { id: number; url: string; ref: string; path: string; interval: string };
+type Draft = { id: number; url: string; ref: string; path: string; interval: string; writeMode: GitSource["writeMode"] };
 
 function GitSourcesPanel(props: {
   styles: Styles;
@@ -241,6 +342,7 @@ function GitSourcesPanel(props: {
       ref: s.ref ?? "",
       path: s.path ?? "",
       interval: String(s.intervalMinutes),
+      writeMode: s.writeMode,
     }));
   useEffect(() => {
     if (drafts === null && settings.status === "ready") setDrafts(toDrafts(settings.values.sources));
@@ -258,6 +360,7 @@ function GitSourcesPanel(props: {
         ref: d.ref.trim() || undefined,
         path: d.path.trim() || undefined,
         intervalMinutes: d.interval.trim() ? Number(d.interval) : DEFAULT_SYNC_MINUTES,
+        writeMode: d.writeMode,
       });
       if (!result.success) {
         setError(`${d.url || "New source"}: ${result.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
@@ -279,8 +382,9 @@ function GitSourcesPanel(props: {
         <Button styles={styles} label={props.syncing ? "Syncing…" : "Sync now"} onPress={props.onSync} />
       </View>
       <Text style={styles.muted}>
-        Roles are loaded from a folder of each repository, read-only, after your project and user roles. Repositories
-        are cloned with the daemon's own git credentials (for example its SSH key).
+        Roles are loaded from a folder of each repository, after your project and user roles. Repositories are cloned
+        and pushed with the daemon's own git credentials (for example its SSH key). Edits you save here become a
+        pull request or a push, depending on each source's mode.
       </Text>
       {settings.status === "invalid" || settings.status === "error" ? (
         <Text style={styles.error}>{settings.error}</Text>
@@ -298,6 +402,19 @@ function GitSourcesPanel(props: {
               onChangeText={(interval) => edit(d.id, { interval })}
               placeholder={String(DEFAULT_SYNC_MINUTES)}
             />
+            <SettingsSelect
+              label="When you save a role change"
+              hint="Pull request pushes a branch for review. Push commits straight to the branch and falls back to a pull request if the push is rejected."
+              value={d.writeMode}
+              options={[
+                { label: "Propose a pull request", value: "pull-request" },
+                { label: "Push to the branch", value: "push" },
+              ]}
+              onValueChange={(writeMode) => edit(d.id, { writeMode })}
+            />
+            {status ? <TokenControls status={status} styles={styles} onChanged={props.onSaved} /> : (
+              <Text style={styles.muted}>Save sources to set a forge token.</Text>
+            )}
             {status ? <Text style={status.error ? styles.error : styles.muted}>{gitStatusText(status)}</Text> : null}
             <Button styles={styles} label="Remove source" onPress={() => setDrafts((list) => (list ?? []).filter((x) => x.id !== d.id))} />
           </View>
@@ -310,11 +427,127 @@ function GitSourcesPanel(props: {
           styles={styles}
           label="Add source"
           onPress={() =>
-            setDrafts((list) => [...(list ?? []), { id: nextId.current++, url: "", ref: "", path: "", interval: String(DEFAULT_SYNC_MINUTES) }])
+            setDrafts((list) => [...(list ?? []), { id: nextId.current++, url: "", ref: "", path: "", interval: String(DEFAULT_SYNC_MINUTES), writeMode: "pull-request" }])
           }
         />
         <Button styles={styles} primary label={settings.status === "ready" && settings.saving ? "Saving…" : "Save sources"} onPress={save} />
       </View>
+    </View>
+  );
+}
+
+function PromoteToGit(props: { sources: GitStatus[]; busy: boolean; styles: Styles; onPromote(sourceId: string): void }) {
+  const [sourceId, setSourceId] = useState("");
+  const chosen = props.sources.find((s) => s.id === sourceId) ?? props.sources[0];
+  return (
+    <View style={props.styles.startBox}>
+      <Text style={props.styles.heading}>Save to git</Text>
+      <Text style={props.styles.muted}>
+        Adds this role to a git source so others get it. The local copy is removed once the change is merged and synced.
+      </Text>
+      <SettingsSelect
+        label="Git source"
+        value={chosen.id}
+        options={props.sources.map((s) => ({ label: `${s.label} (${s.writeMode})`, value: s.id }))}
+        onValueChange={setSourceId}
+      />
+      <Button
+        styles={props.styles}
+        primary
+        label={props.busy ? "Saving…" : chosen.writeMode === "push" ? "Push to git" : "Propose via pull request"}
+        onPress={() => props.onPromote(chosen.id)}
+      />
+    </View>
+  );
+}
+
+function ProposalsPanel(props: {
+  styles: Styles;
+  proposals: Proposal[];
+  busyId?: string;
+  error: string | null;
+  onCreatePr(id: string): void;
+  hasToken(sourceId: string): boolean;
+}) {
+  const { styles } = props;
+  if (props.proposals.length === 0) return null;
+  return (
+    <View style={styles.panel}>
+      <Text style={styles.heading}>Changes sent to git</Text>
+      {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
+      {props.proposals.slice(0, 8).map((p) => (
+        <View key={p.id} style={styles.field}>
+          <Text style={styles.name}>{p.title}</Text>
+          <Text style={styles.muted}>
+            {p.sourceLabel} · {new Date(p.createdAt).toLocaleString()} · commit {p.commit.slice(0, 8)}
+            {p.branch ? ` on ${p.branch}` : ` pushed to ${p.base}`}
+          </Text>
+          {p.fellBack ? <Text style={styles.muted}>Push was rejected ({p.fellBack}); proposed as a branch instead.</Text> : null}
+          {p.promotedFrom ? (
+            <Text style={styles.muted}>
+              {p.localCopyRemoved ? "Local copy removed after merge." : "Local copy is kept until this is merged and synced."}
+            </Text>
+          ) : null}
+          {p.pr ? (
+            <ExternalLink href={p.pr.url}>{`PR #${p.pr.number} (${p.pr.state}) - open`}</ExternalLink>
+          ) : p.outcome === "branch" ? (
+            <View style={styles.row}>
+              {props.hasToken(p.sourceId) ? (
+                <Button
+                  styles={styles}
+                  primary
+                  label={props.busyId === p.id ? "Creating…" : "Create PR"}
+                  onPress={() => props.onCreatePr(p.id)}
+                />
+              ) : null}
+              {p.compareUrl ? (
+                <ExternalLink href={p.compareUrl}>
+                  {props.hasToken(p.sourceId) ? "Review on the forge" : "Open prefilled PR page (no forge token set)"}
+                </ExternalLink>
+              ) : null}
+            </View>
+          ) : null}
+          {p.prError ? <Text style={styles.error}>{p.prError}</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Write-only forge token: the field is never filled from storage, only "set" or "not set" is shown. */
+function TokenControls({ status, styles, onChanged }: { status: GitStatus; styles: Styles; onChanged(): void }) {
+  const setToken = useRpc(setTokenRpc);
+  const clearToken = useRpc(clearTokenRpc);
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const run = async (action: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await action();
+      setValue("");
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  if (!status.forge) {
+    return <Text style={styles.muted}>No pull request API for this host: a prefilled compare link is offered instead.</Text>;
+  }
+  return (
+    <View style={styles.field}>
+      <SettingsInput
+        label={`${status.forge} token: ${status.hasToken ? "set" : "not set"}`}
+        hint="Optional. A fine-grained token with pull request write access to this repository lets you create the PR in one click; without it you get a prefilled link. Stored on the daemon, never shown again."
+        initialValue=""
+        secureTextEntry
+        onChangeText={setValue}
+        placeholder={status.hasToken ? "Enter a new token to replace it" : "Paste token"}
+      />
+      <View style={styles.row}>
+        <Button styles={styles} label="Save token" onPress={() => value && run(() => setToken({ sourceId: status.id, token: value }))} />
+        {status.hasToken ? <Button styles={styles} label="Clear token" onPress={() => run(() => clearToken({ sourceId: status.id }))} /> : null}
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }
