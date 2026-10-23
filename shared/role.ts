@@ -73,8 +73,23 @@ export const roleSchema = z.strictObject({
     .strictObject({
       /** Kube Agents template: `PASEO_KUBE_TEMPLATE`. */
       kubeTemplate: z.string().optional(),
-      /** Agents Warder: `PASEO_WARDER=on|off`. */
-      warder: z.enum(["on", "off"]).optional(),
+      /**
+       * Agents Warder. `on` or `off` sets `PASEO_WARDER`; the object form also sets the agent's
+       * default check interval as `PASEO_WARDER_INTERVAL` (for example `15m`, `1h30m` or `900` seconds).
+       */
+      warder: z
+        .union([
+          z.enum(["on", "off"]),
+          z.strictObject({
+            mode: z.enum(["on", "off"]).optional(),
+            interval: z
+              .string()
+              .regex(/^(\d+h)?(\d+m)?(\d+s)?$|^\d+$/, "an interval like 15m, 1h30m or 900 (seconds)")
+              .refine((v) => v !== "", "an interval like 15m, 1h30m or 900 (seconds)")
+              .optional(),
+          }),
+        ])
+        .optional(),
       /** Agents Tickets Sync ticket to bind: `PASEO_AGENT_TICKET`. */
       ticket: z.string().optional(),
     })

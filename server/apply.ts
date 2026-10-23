@@ -23,9 +23,11 @@ export function resolveEnv(role: Role, daemonEnv: Record<string, string | undefi
 /** Defaults for other plugins, as the environment they already read. */
 export function pluginEnv(role: Role): Record<string, string> {
   const p = role.plugins;
+  const warder = typeof p?.warder === "string" ? { mode: p.warder, interval: undefined } : p?.warder;
   return {
     ...(p?.kubeTemplate ? { PASEO_KUBE_TEMPLATE: p.kubeTemplate } : {}),
-    ...(p?.warder ? { PASEO_WARDER: p.warder } : {}),
+    ...(warder?.mode ? { PASEO_WARDER: warder.mode } : {}),
+    ...(warder?.interval ? { PASEO_WARDER_INTERVAL: warder.interval } : {}),
     ...(p?.ticket ? { PASEO_AGENT_TICKET: p.ticket } : {}),
   };
 }

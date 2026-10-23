@@ -45,6 +45,24 @@ describe("applyRole", () => {
     expect(applyRole(base, role({})).env).toEqual({ PASEO_AGENT_ROLE: "r" });
   });
 
+  it("maps plugins.warder to PASEO_WARDER and PASEO_WARDER_INTERVAL", () => {
+    const env = (warder: unknown) => applyRole(base, role({ plugins: { warder } })).env;
+    expect(env("off")).toMatchObject({ PASEO_WARDER: "off" });
+    expect(env("off")).not.toHaveProperty("PASEO_WARDER_INTERVAL");
+    expect(env({ mode: "on", interval: "15m" })).toMatchObject({ PASEO_WARDER: "on", PASEO_WARDER_INTERVAL: "15m" });
+    expect(env({ interval: "900" })).toMatchObject({ PASEO_WARDER_INTERVAL: "900" });
+    expect(env({ interval: "1h30m" })).toMatchObject({ PASEO_WARDER_INTERVAL: "1h30m" });
+    expect(env({ interval: "900" })).not.toHaveProperty("PASEO_WARDER");
+    const explicit = applyRole({ ...base, env: { ...base.env, PASEO_WARDER_INTERVAL: "5m" } }, role({ plugins: { warder: { interval: "15m" } } }));
+    expect(explicit.env?.PASEO_WARDER_INTERVAL).toBe("5m");
+  });
+
+  it("rejects a bad warder interval", () => {
+    for (const interval of ["soon", "", "-5m", "15 minutes"]) {
+      expect(roleSchema.safeParse({ name: "r", plugins: { warder: { interval } } }).success).toBe(false);
+    }
+  });
+
   it("resolves ${NAME} references from the daemon environment", () => {
     const r = role({ env: { API_TOKEN: "${GH_TOKEN}", URL: "https://${HOST}/x", PLAIN: "v" } });
     const out = applyRole(base, r, { GH_TOKEN: "abc", HOST: "h" });

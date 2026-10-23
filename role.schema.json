@@ -79,10 +79,31 @@
           "type": "string"
         },
         "warder": {
-          "type": "string",
-          "enum": [
-            "on",
-            "off"
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "on",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "on",
+                    "off"
+                  ]
+                },
+                "interval": {
+                  "type": "string",
+                  "pattern": "^(\\d+h)?(\\d+m)?(\\d+s)?$|^\\d+$"
+                }
+              },
+              "additionalProperties": false
+            }
           ]
         },
         "ticket": {

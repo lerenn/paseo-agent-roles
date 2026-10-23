@@ -86,7 +86,7 @@ env:                        # agent process env; values passed at creation win
 maxConcurrent: 3            # at most 3 agents of this role working at once
 plugins:                    # defaults for other plugins (each optional, see below)
   kubeTemplate: default
-  warder: on
+  warder: { mode: on, interval: 15m }   # or just `warder: on`
   ticket: ANY-1234
 providerOptions:            # provider-specific, merged over the requested ones; use for limits
   maxTurns: 40
@@ -100,7 +100,7 @@ Application rules: scalar fields from the role (`provider`, `model`, `thinkingOp
 
 **Concurrency.** `maxConcurrent: N` caps the agents of the role that are initializing or running (idle and archived agents do not count). Creating one more fails with `Role "x" is at its limit of N concurrent agents`; nothing is queued. The plugin learns which agents run which role when their session opens, and keeps that in `~/.paseo/agent-roles/role-agents.json` so a daemon restart does not forget them.
 
-**Defaults for other plugins** are plain environment those plugins already read, with no dependency on them: `plugins.kubeTemplate` sets `PASEO_KUBE_TEMPLATE` (Kube Agents), `plugins.warder` sets `PASEO_WARDER=on|off` (Agents Warder), `plugins.ticket` sets `PASEO_AGENT_TICKET` (Agents Tickets Sync). Anything else another plugin reads can go in `env`. Agents Warder has no creation-time inactivity timeout to set today.
+**Defaults for other plugins** are plain environment those plugins already read, with no dependency on them: `plugins.kubeTemplate` sets `PASEO_KUBE_TEMPLATE` (Kube Agents), `plugins.warder` sets `PASEO_WARDER=on|off` (Agents Warder), and `plugins.warder: { mode: on, interval: 15m }` also sets its default check interval as `PASEO_WARDER_INTERVAL` (`15m`, `1h30m` or seconds), `plugins.ticket` sets `PASEO_AGENT_TICKET` (Agents Tickets Sync). Anything else another plugin reads can go in `env`.
 
 Paseo has no provider-independent limit setting, so limits go in `providerOptions` using the names your provider expects.
 
