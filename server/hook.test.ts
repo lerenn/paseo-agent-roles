@@ -9,6 +9,7 @@ type Handler = (input: { request: any }, ctx: any) => Promise<any>;
 function register() {
   let handler: Handler | undefined;
   const cleanup = contribute({
+    handle() {},
     before(name: string, h: Handler) {
       expect(name).toBe("agent.create");
       handler = h;
