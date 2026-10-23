@@ -1,9 +1,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { stringify } from "yaml";
 import { roleNameSchema } from "../shared/role";
 import type { RoleEntry, RoleSource } from "../shared/rpc";
-import { bundledRoles } from "./bundled";
 import { describeError, EXTENSIONS, parseRole, parseRoleText, projectRolesPath, userRolesDir } from "./loader";
 
 export interface GitLayer {
@@ -54,13 +52,6 @@ export async function listRoles(
     cwd ? await readDir(path.join(cwd, projectRolesPath), "project") : [],
     await readDir(dirs.user, "user"),
     ...(await Promise.all((dirs.git ?? []).map((g) => readDir(g.dir, "git", g.label)))),
-    Object.values(bundledRoles).map((role) => ({
-      name: role.name,
-      source: "bundled" as const,
-      origin: "bundled",
-      text: stringify(role),
-      role,
-    })),
   ];
   const byName = new Map<string, RoleEntry>();
   for (const layer of layers) {

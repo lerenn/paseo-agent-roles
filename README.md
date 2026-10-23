@@ -26,7 +26,7 @@ Agents created without the variable are not touched. An unknown role name makes 
 
 The plugin adds an **Agent roles** item to the sidebar (reorder or hide it in Settings > Sidebar). The screen lists every role with its source, shows its prompt, model, tools and environment, and lets you:
 
-- create a role, edit your own roles, or copy a bundled or project role into your user roles (saved to `~/.paseo/roles/<name>.yaml`) and delete user roles;
+- create a role, edit your own roles, or copy a project or git role into your user roles (saved to `~/.paseo/roles/<name>.yaml`) and delete user roles;
 - start a new agent with a role: pick a workspace and provider, optionally type a first prompt, and the agent is created with `PASEO_AGENT_ROLE` set.
 
 Project roles show up for the workspace chosen at the top of the screen. Project role files are not edited from the screen; copy one to your user roles to change it.
@@ -38,9 +38,10 @@ First match wins, highest priority first:
 1. **project**: `<agent cwd>/.paseo/roles/<name>.{yaml,yml,json}` (commit these with the project)
 2. **user**: `~/.paseo/roles/<name>.{yaml,yml,json}`
 3. **git source(s)**: a folder of each configured git repository, in the order they are listed
-4. **bundled** examples: `implementer`, `reviewer`, `qa`, `investigator`, `babysitter`
 
-The screen shows the source of each role (`git: <repo>@<ref>` for git sources) and which lower-priority roles it hides.
+The plugin ships no roles of its own: until you create one or add a source, the screen is empty and `PASEO_AGENT_ROLE` names nothing. Five generic starting points (`implementer`, `reviewer`, `qa`, `investigator`, `babysitter`) live in [`docs/examples/roles`](docs/examples/roles). They are never loaded; copy the ones you want into `~/.paseo/roles/` or your project's `.paseo/roles/`, or point a git source at that folder.
+
+The screen shows the source of each role (`project`, `user` or `git: <repo>@<ref>`) and which lower-priority roles it hides.
 
 ## Git sources
 
@@ -57,7 +58,7 @@ Keep a team's roles in a repository and let every daemon pick them up. Git is op
 
 The plugin shallow-clones each source into `~/.paseo/agent-roles/git/` and fetches it on its interval (and when you press **Sync now**). It runs the daemon's `git`, so access uses whatever credentials the daemon already has (SSH key, credential helper); never put a token in the URL, as saved settings are not secret. The screen shows each source's last sync time or error; if a sync fails, the last good copy keeps being used.
 
-This repository's [`examples/roles`](examples/roles) folder is a working example source: URL `https://github.com/lerenn/paseo-agent-roles.git`, folder `examples/roles`.
+This repository's [`docs/examples/roles`](docs/examples/roles) folder works as an example source: URL `https://github.com/lerenn/paseo-agent-roles.git`, folder `docs/examples/roles`.
 
 ### Writing roles to git
 

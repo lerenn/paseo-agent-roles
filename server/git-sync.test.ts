@@ -84,7 +84,7 @@ describe("GitSources", () => {
     expect(clones).toBe(1);
   });
 
-  it("feeds the role catalog as a git layer between user and bundled", async () => {
+  it("feeds the role catalog as a git layer below user roles", async () => {
     const origin = await makeOrigin();
     const sources = new GitSources(await tmp());
     const source = { url: origin, ref: "main", path: "roles", intervalMinutes: 5 };
@@ -95,7 +95,7 @@ describe("GitSources", () => {
     const roles = await listRoles(undefined, { user, git: [git2] });
     expect(roles.find((r) => r.name === "ev")).toMatchObject({ source: "git", origin: `git: ${origin}@main` });
     expect(roles.find((r) => r.name === "qa")?.source).toBe("user");
-    expect(roles.find((r) => r.name === "reviewer")?.source).toBe("bundled");
+    expect(roles.map((r) => r.name).sort()).toEqual(["ev", "qa"]);
   });
 });
 

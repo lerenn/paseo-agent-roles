@@ -2,7 +2,6 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { bundledRoles } from "./bundled";
 import { loadRole } from "./loader";
 
 const tmp = () => mkdtemp(path.join(tmpdir(), "roles-"));
@@ -16,11 +15,11 @@ describe("loadRole", () => {
     expect(await loadRole("b", [dir])).toMatchObject({ model: "m2", version: 1 });
   });
 
-  it("prefers earlier directories and falls back to the bundled examples", async () => {
+  it("prefers earlier directories", async () => {
     const first = await tmp();
     await writeFile(path.join(first, "reviewer.yml"), "name: reviewer\nmodel: custom\n");
     expect((await loadRole("reviewer", [first]))?.model).toBe("custom");
-    expect(await loadRole("reviewer", [await tmp()])).toEqual(bundledRoles.reviewer);
+    expect(await loadRole("reviewer", [await tmp()])).toBeNull();
   });
 
   it("returns null for an unknown role", async () => {
@@ -40,22 +39,10 @@ describe("loadRole", () => {
   });
 });
 
-describe("bundled roles", () => {
-  it("ships the generic examples", () => {
-    expect(Object.keys(bundledRoles).sort()).toEqual([
-      "babysitter",
-      "implementer",
-      "investigator",
-      "qa",
-      "reviewer",
-    ]);
-  });
-});
-
 describe("example roles", () => {
-  it("are valid role files", async () => {
-    const dir = path.join(__dirname, "..", "examples", "roles");
-    for (const name of ["docs-writer", "release-notes"]) {
+  it("are valid role files and are never loaded by default", async () => {
+    const dir = path.join(__dirname, "..", "docs", "examples", "roles");
+    for (const name of ["babysitter", "implementer", "investigator", "qa", "reviewer"]) {
       expect((await loadRole(name, [dir]))?.name).toBe(name);
     }
   });

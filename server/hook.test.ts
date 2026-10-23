@@ -42,12 +42,10 @@ describe("agent.create hook", () => {
     expect(out.env).toMatchObject({ PASEO_KUBE_TEMPLATE: "t", PASEO_AGENT_ROLE: "custom" });
   });
 
-  it("applies a bundled role", async () => {
-    const out = await register()(
-      { request: { config: { provider: "claude", cwd: "/x" }, env: { PASEO_AGENT_ROLE: "qa" } } },
-      {},
-    );
-    expect(out.config.systemPrompt).toMatch(/QA engineer/);
+  it("has no built-in roles: a name without a file is an unknown role", async () => {
+    await expect(
+      register()({ request: { config: { provider: "claude", cwd: "/x" }, env: { PASEO_AGENT_ROLE: "reviewer" } } }, {}),
+    ).rejects.toThrow(/no such role/);
   });
 
   it("fails creation for an unknown role", async () => {

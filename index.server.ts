@@ -55,7 +55,7 @@ export default function contribute(server: PluginServerContext) {
     ];
     const role = await loadRole(name, dirs);
     if (!role) {
-      throw new Error(`${ROLE_ENV}=${name}: no such role (looked in ${dirs.join(", ")} and the bundled roles)`);
+      throw new Error(`${ROLE_ENV}=${name}: no such role (looked in ${dirs.join(", ")})`);
     }
     return applyRole(request, role);
   });

@@ -135,6 +135,14 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
       {roles.error ? <Text style={styles.error}>{String(roles.error)}</Text> : null}
       {roles.data ? <Text style={styles.muted}>Your roles are saved in {roles.data.userDir}</Text> : null}
 
+      {roles.data && roles.data.roles.length === 0 ? (
+        <View style={styles.panel}>
+          <Text style={styles.heading}>No roles yet</Text>
+          <Text style={styles.muted}>Create one, or add a git source below.</Text>
+          <Button styles={styles} primary label="New role" onPress={() => setEditing({ text: TEMPLATE, original: null })} />
+        </View>
+      ) : null}
+
       {roles.data?.roles.map((r) => (
         <Pressable
           key={r.name}
