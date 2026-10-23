@@ -1,8 +1,8 @@
-Agent roles starts agents from named role definitions. A role bundles a system prompt, a model, MCP servers, pre-approved tools and provider options, and lives as a YAML or JSON file in your repository instead of being retyped for every agent.
+Agent Roles starts agents from named role definitions. A role bundles a system prompt, a model, MCP servers, pre-approved tools and provider options, and lives as a YAML or JSON file in your repository instead of being retyped for every agent.
 
 Pass `PASEO_AGENT_ROLE=<name>` in the environment when creating an agent, for example `paseo run --env PASEO_AGENT_ROLE=reviewer`. The plugin rewrites the agent's configuration before it starts. Agents created without the variable are left untouched, and an unknown role name makes creation fail.
 
-The Agent roles sidebar item opens a screen that lists roles and their sources, shows each role's prompt, model and tools, writes role changes to git, and starts a new agent with a chosen role.
+The Agent Roles sidebar item opens a screen that lists roles and their sources, shows each role's prompt, model and tools, writes role changes to git, and starts a new agent with a chosen role.
 
 Roles come only from git repositories you configure on the screen: each is shallow-cloned and re-fetched every few minutes with the daemon's own git credentials, and a folder of it holds the role files. With no source configured there are no roles. The plugin ships none; generic examples live in the repository's docs folder for you to copy.
 

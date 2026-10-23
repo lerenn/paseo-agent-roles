@@ -88,7 +88,7 @@ export function RolesScreen({ theme, layout, navigation, host }: PluginScreenPro
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.row}>
-        <Text style={styles.title}>{hostTitle("Agent roles", host.label, hosts.length)}</Text>
+        <Text style={styles.title}>{hostTitle("Agent Roles", host.label, hosts.length)}</Text>
         {sources.length > 0 ? <Button styles={styles} label="New role" onPress={newRole} /> : null}
       </View>
       <Text style={styles.muted}>

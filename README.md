@@ -22,9 +22,9 @@ paseo run --env PASEO_AGENT_ROLE=reviewer "Review the current diff"
 
 Agents created without the variable are not touched. An unknown role name, or no git source at all, makes agent creation fail with an explanation. The variable stays set in the agent's environment so the agent can tell which role it runs as.
 
-## The Agent roles screen
+## The Agent Roles screen
 
-The plugin adds an **Agent roles** item to the sidebar (reorder or hide it in Settings > Sidebar). When the app knows several hosts, the item and the screen heading read "Agent roles · <host label>" so you can tell which daemon they act on. Roles come only from [git sources](#git-sources); with none configured the screen says "Add a git source to load roles". Otherwise it lists every role with its source, shows its prompt, model, tools and environment, and lets you:
+The plugin adds an **Agent Roles** item to the sidebar (reorder or hide it in Settings > Sidebar). When the app knows several hosts, the item and the screen heading read "Agent Roles · <host label>" so you can tell which daemon they act on. Roles come only from [git sources](#git-sources); with none configured the screen says "Add a git source to load roles". Otherwise it lists every role with its source, shows its prompt, model, tools and environment, and lets you:
 
 - create, edit or delete a role: the change is written to a git source (you pick one when there are several) through the [write flow](#writing-roles-to-git), a pull request by default;
 - start a new agent with a role: pick a workspace and provider, optionally type a first prompt, and the agent is created with `PASEO_AGENT_ROLE` set.
@@ -37,7 +37,7 @@ Five generic starting points (`implementer`, `reviewer`, `qa`, `investigator`, `
 
 ## Git sources
 
-Keep a team's roles in a repository and let every daemon pick them up. Nothing is cloned or loaded until you add a source. On the Agent roles screen, under **Git sources**, add one or more sources:
+Keep a team's roles in a repository and let every daemon pick them up. Nothing is cloned or loaded until you add a source. On the Agent Roles screen, under **Git sources**, add one or more sources:
 
 | Field | Meaning |
 |---|---|

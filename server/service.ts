@@ -85,7 +85,7 @@ export class RolesService {
   private record(source: GitSource, role: string, result: WriteResult): Proposal {
     const title = result.message;
     const body = [
-      "Proposed from the Paseo Agent roles plugin.",
+      "Proposed from the Paseo Agent Roles plugin.",
       "",
       "Changed files:",
       ...result.files.map((f) => `- ${f} (${result.action === "create" ? "added" : result.action === "delete" ? "removed" : "modified"})`),
