@@ -37,7 +37,7 @@ Five generic starting points (`implementer`, `reviewer`, `qa`, `investigator`, `
 
 ## Git sources
 
-Keep a team's roles in a repository and let every daemon pick them up. Nothing is cloned or loaded until you add a source. On the Agent Roles screen, under **Git sources**, add one or more sources:
+Keep a team's roles in a repository and let every daemon pick them up. Nothing is cloned or loaded until you add a source. On the Agent Roles screen, under **Git sources** (a collapsed section; click it to expand), add one or more sources:
 
 | Field | Meaning |
 |---|---|
