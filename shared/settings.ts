@@ -25,6 +25,11 @@ export const gitSourceSchema = z.object({
     .refine((v) => !/^([\\/]|[A-Za-z]:)/.test(v), "path must be relative")
     .optional(),
   intervalMinutes: z.number().int().min(1).default(DEFAULT_SYNC_MINUTES),
+  /**
+   * How saved role changes reach the repository. "pull-request" pushes a branch for review;
+   * "push" commits straight to the ref and falls back to a branch if the push is rejected.
+   */
+  writeMode: z.enum(["pull-request", "push"]).default("pull-request"),
 });
 export type GitSource = z.output<typeof gitSourceSchema>;
 
