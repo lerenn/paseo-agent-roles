@@ -107,8 +107,8 @@ describe("labels", () => {
     expect(label("git@github.com:anyshift-io/lfradin-lab.git")).toBe("anyshift-io/lfradin-lab@main");
     expect(label("ssh://git@github.com/anyshift-io/lfradin-lab.git")).toBe("anyshift-io/lfradin-lab@main");
     expect(label("ssh://git@github.com:22/a/b")).toBe("a/b@main");
-    expect(label("https://github.com/lerenn/paseo-agent-roles.git")).toBe("lerenn/paseo-agent-roles@main");
-    expect(label("https://github.com/lerenn/paseo-agent-roles")).toBe("lerenn/paseo-agent-roles@main");
+    expect(label("https://github.com/lerenn/paseo-agents-roles.git")).toBe("lerenn/paseo-agents-roles@main");
+    expect(label("https://github.com/lerenn/paseo-agents-roles")).toBe("lerenn/paseo-agents-roles@main");
     expect(label("https://x-token:secret@github.com/a/b.git/")).toBe("a/b@main");
     expect(label("git@gitlab.com:group/sub/repo.git", "v2")).toBe("gitlab.com/group/sub/repo@v2");
     expect(label("https://git.example.org:8443/team/repo.git")).toBe("git.example.org/team/repo@main");

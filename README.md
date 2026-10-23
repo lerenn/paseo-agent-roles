@@ -1,4 +1,4 @@
-# paseo-agent-roles
+# paseo-agents-roles
 
 A [Paseo](https://paseo.sh) plugin that starts agents from versioned role definitions: a system prompt, a model, MCP servers, pre-approved tools and provider options, kept as files in your repository.
 
@@ -7,7 +7,7 @@ Requires Paseo >= 0.11.2.
 ## Install
 
 ```bash
-paseo plugin add git:lerenn/paseo-agent-roles
+paseo plugin add git:lerenn/paseo-agents-roles
 ```
 
 (or install `lerenn/agent-roles` from the plugin registry once listed). The plugin runs `npm ci` on install.
@@ -41,7 +41,7 @@ Keep a team's roles in a repository and let every daemon pick them up. Nothing i
 
 | Field | Meaning |
 |---|---|
-| Repository URL | Anything `git clone` accepts, e.g. `git@github.com:acme/agent-roles.git` or `https://github.com/lerenn/paseo-agent-roles.git` |
+| Repository URL | Anything `git clone` accepts, e.g. `git@github.com:acme/agent-roles.git` or `https://github.com/lerenn/paseo-agents-roles.git` |
 | Branch or tag | Optional; the remote's default branch if empty. Writing needs a branch. |
 | Folder | Optional folder inside the repository that holds the role files, e.g. `roles` |
 | Sync interval | Minutes between fetches, default 5 |
@@ -50,7 +50,7 @@ Keep a team's roles in a repository and let every daemon pick them up. Nothing i
 
 The plugin shallow-clones each source into `~/.paseo/agent-roles/git/` and fetches it on its interval (and when you press **Sync now**). It runs the daemon's `git`, so access uses whatever credentials the daemon already has (SSH key, credential helper); never put a token in the URL, as saved settings are not secret. The screen shows each source's last sync time or error; if a sync fails, the last good copy keeps being used.
 
-This repository's [`docs/examples/roles`](docs/examples/roles) folder works as an example source: URL `https://github.com/lerenn/paseo-agent-roles.git`, folder `docs/examples/roles`.
+This repository's [`docs/examples/roles`](docs/examples/roles) folder works as an example source: URL `https://github.com/lerenn/paseo-agents-roles.git`, folder `docs/examples/roles`.
 
 ### Writing roles to git
 
