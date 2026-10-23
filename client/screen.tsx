@@ -282,9 +282,11 @@ function launchSummary(role: NonNullable<RoleEntry["role"]>): string {
 /** The plugin defaults a role sets, by the environment variable they become. */
 function pluginDefaults(role: NonNullable<RoleEntry["role"]>): Record<string, string> {
   const p = role.plugins;
+  const warder = typeof p?.warder === "string" ? { mode: p.warder, interval: undefined } : p?.warder;
   return {
     ...(p?.kubeTemplate ? { PASEO_KUBE_TEMPLATE: p.kubeTemplate } : {}),
-    ...(p?.warder ? { PASEO_WARDER: p.warder } : {}),
+    ...(warder?.mode ? { PASEO_WARDER: warder.mode } : {}),
+    ...(warder?.interval ? { PASEO_WARDER_INTERVAL: warder.interval } : {}),
     ...(p?.ticket ? { PASEO_AGENT_TICKET: p.ticket } : {}),
   };
 }
