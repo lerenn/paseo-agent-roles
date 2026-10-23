@@ -26,10 +26,14 @@ description: What this role is for.
 systemPrompt: |
   You are ...
 # model: claude-sonnet-5-5
-# mcpServers:
-#   docs: { type: http, url: https://example.com/mcp }
+# mcpServers: [linear]        # names known to the MCP proxy plugin
+# maxConcurrent: 3
 # env:
-#   KEY: value
+#   LOG_LEVEL: debug
+#   API_TOKEN: \${API_TOKEN}     # secrets: reference the daemon's env, never write them here
+# plugins:
+#   kubeTemplate: default
+#   warder: on
 `;
 
 /** A role being written: the text, and the git source it will be proposed to. */
@@ -220,7 +224,7 @@ function Detail(props: {
   const { entry, styles } = props;
   const role = entry.role;
   const tools = [
-    ...Object.entries(role?.mcpServers ?? {}).map(([name, s]) => `${name} (${s.type})`),
+    ...(role?.mcpServers ?? []).map((name) => `${name} (MCP server)`),
     ...(role?.preapprovedTools ?? []).map((t) => `${t.server}.${t.tool} (pre-approved)`),
   ];
   return (
@@ -242,7 +246,8 @@ function Detail(props: {
           <Field styles={styles} label="Provider / model" value={[role.provider, role.model].filter(Boolean).join(" / ") || "unchanged"} />
           <Field styles={styles} label="Thinking level / permission mode" value={[role.thinkingOptionId, role.modeId].filter(Boolean).join(" / ") || "unchanged"} />
           <Field styles={styles} label="Tools" value={tools.join("\n") || "none added"} />
-          <Field styles={styles} label="Environment" value={Object.keys(role.env ?? {}).join(", ") || "none"} />
+          <Field styles={styles} label="Environment" value={Object.keys({ ...role.env, ...pluginDefaults(role) }).join(", ") || "none"} />
+          <Field styles={styles} label="Max concurrent agents" value={role.maxConcurrent ? String(role.maxConcurrent) : "no limit"} />
           <Field styles={styles} label="Provider options" value={role.providerOptions ? JSON.stringify(role.providerOptions) : "none"} />
           <Field styles={styles} label="Prompt" value={role.systemPrompt ?? "none"} />
         </>
@@ -267,6 +272,16 @@ function launchSummary(role: NonNullable<RoleEntry["role"]>): string {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+/** The plugin defaults a role sets, by the environment variable they become. */
+function pluginDefaults(role: NonNullable<RoleEntry["role"]>): Record<string, string> {
+  const p = role.plugins;
+  return {
+    ...(p?.kubeTemplate ? { PASEO_KUBE_TEMPLATE: p.kubeTemplate } : {}),
+    ...(p?.warder ? { PASEO_WARDER: p.warder } : {}),
+    ...(p?.ticket ? { PASEO_AGENT_TICKET: p.ticket } : {}),
+  };
 }
 
 function gitStatusText(status?: GitStatus): string {

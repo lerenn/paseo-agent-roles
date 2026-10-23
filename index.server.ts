@@ -1,6 +1,7 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { GitSources } from "./server/git-sync";
-import { agentCreateHook } from "./server/hook";
+import { agentCreateHook, sessionOpenHook } from "./server/hook";
+import { RoleLimits } from "./server/limits";
 import { ProposalStore } from "./server/proposals";
 import { RolesService } from "./server/service";
 import { TokenStore } from "./server/tokens";
@@ -37,10 +38,12 @@ export default function contribute(server: PluginServerContext) {
     gitSources.configure(state.status === "ready" ? state.values.sources : []);
   });
 
+  const limits = new RoleLimits();
   const removeHook = server.before(
     "agent.create",
-    agentCreateHook(async () => (await configured()).map((s) => gitSources.rolesDir(s))),
+    agentCreateHook(async () => (await configured()).map((s) => gitSources.rolesDir(s)), limits),
   );
+  const removeSessionHook = server.before("agent.session_open", sessionOpenHook(limits));
 
   server.handle(listRolesRpc, async () => ({
     roles: await service.list(),
@@ -71,6 +74,7 @@ export default function contribute(server: PluginServerContext) {
 
   return () => {
     removeHook();
+    removeSessionHook();
     unsubscribe();
     gitSources.stop();
   };

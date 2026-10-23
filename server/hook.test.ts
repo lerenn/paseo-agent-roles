@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import contribute from "../index.server";
-import { agentCreateHook } from "./hook";
+import { agentCreateHook, sessionOpenHook } from "./hook";
+import { RoleLimits } from "./limits";
 
 const request = (env?: Record<string, string>) => ({ request: { config: { provider: "claude", cwd: "/x" }, env } });
 
@@ -36,6 +37,40 @@ describe("agent.create hook", () => {
   });
 });
 
+describe("concurrency limit", () => {
+  const ctx = (status: string) => ({ paseo: { agents: { ref: () => ({ refresh: async () => ({ agent: { status, archivedAt: null } }) }) } } }) as never;
+
+  it("refuses creation over maxConcurrent and counts agents registered at session open", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "hook-"));
+    await writeFile(path.join(dir, "r.yaml"), "name: r\nmaxConcurrent: 1\nmodel: m\n");
+    const limits = new RoleLimits(path.join(dir, "agents.json"));
+    const create = agentCreateHook(async () => [dir], limits);
+    const open = sessionOpenHook(limits);
+    const env = { PASEO_AGENT_ROLE: "r" };
+
+    const first = await create(request(env), ctx("running"));
+    expect(first?.config.model).toBe("m");
+    await open({ request: { agentId: "a1", workspaceId: null, provider: "claude", cwd: "/x", reason: "create", purpose: "interactive", env } });
+
+    await expect(create(request(env), ctx("running"))).rejects.toThrow(/Role "r" is at its limit of 1 concurrent agent/);
+    // once the agent is idle, a new one may start
+    expect((await create(request(env), ctx("idle")))?.config.model).toBe("m");
+  });
+
+  it("does not track or limit roles without maxConcurrent", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "hook-"));
+    await writeFile(path.join(dir, "r.yaml"), "name: r\n");
+    const limits = new RoleLimits(path.join(dir, "agents.json"));
+    const create = agentCreateHook(async () => [dir], limits);
+    for (let i = 0; i < 3; i++) expect(await create(request({ PASEO_AGENT_ROLE: "r" }), ctx("running"))).toBeDefined();
+  });
+
+  it("session open without a role does nothing", async () => {
+    const limits = new RoleLimits(path.join(await mkdtemp(path.join(tmpdir(), "hook-")), "agents.json"));
+    expect(await sessionOpenHook(limits)({ request: { agentId: "a", workspaceId: null, provider: "p", cwd: "/", reason: "create", purpose: "interactive", env: {} } })).toBeUndefined();
+  });
+});
+
 describe("plugin entry", () => {
   it("registers the hook and cleans up", () => {
     const names: string[] = [];
@@ -47,7 +82,7 @@ describe("plugin entry", () => {
         return () => {};
       },
     } as never);
-    expect(names).toEqual(["agent.create"]);
+    expect(names).toEqual(["agent.create", "agent.session_open"]);
     cleanup();
   });
 });
