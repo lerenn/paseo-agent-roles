@@ -1,5 +1,5 @@
 {
-  "name": "paseo-agent-roles",
+  "name": "paseo-agents-roles",
   "private": true,
   "version": "0.1.0",
   "description": "Start Paseo agents from versioned role definitions.",
