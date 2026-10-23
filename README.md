@@ -31,7 +31,7 @@ The plugin adds an **Agent roles** item to the sidebar (reorder or hide it in Se
 
 ## Where roles are found
 
-Only in the folders of the configured git sources. If two sources hold a role of the same name, the one listed first wins. There are no project-local, per-user or built-in roles. To keep roles next to a project, point a git source at that project's repository and folder.
+Only in the folders of the configured git sources. The screen labels a source `owner/repo@ref` (`host/owner/repo@ref` outside GitHub). If two sources hold a role of the same name, the one listed first wins. There are no project-local, per-user or built-in roles. To keep roles next to a project, point a git source at that project's repository and folder.
 
 Five generic starting points (`implementer`, `reviewer`, `qa`, `investigator`, `babysitter`) live in [`docs/examples/roles`](docs/examples/roles). They are never loaded: copy the ones you want into your own roles repository, or point a git source at that folder.
 

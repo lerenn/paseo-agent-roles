@@ -52,7 +52,7 @@ describe("RolesService", () => {
     expect(p).toMatchObject({
       outcome: "branch",
       title: "agent-roles: update ev",
-      sourceLabel: `git: ${source.url}@main`,
+      sourceLabel: `${source.url}@main`,
       compareUrl: `https://forge.test/compare/main...${p.branch}`,
     });
     expect(p.body).toContain("- roles/ev.yaml (modified)");

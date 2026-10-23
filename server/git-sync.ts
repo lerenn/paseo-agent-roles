@@ -28,8 +28,24 @@ export function redactUrl(text: string): string {
   return text.replace(/(\w+:\/\/)[^/@\s]+@/g, "$1");
 }
 
+/**
+ * Short display form of a source: `owner/repo@ref` on GitHub, `host/owner/repo@ref` elsewhere.
+ * Understands ssh (`git@host:owner/repo.git`, `ssh://...`) and https URLs; anything else (a local
+ * path, say) is shown as given, without credentials.
+ */
 export function sourceLabel(source: Pick<GitSource, "url" | "ref">): string {
-  return `git: ${redactUrl(source.url)}@${source.ref || "HEAD"}`;
+  return `${repoLabel(source.url)}@${source.ref || "HEAD"}`;
+}
+
+function repoLabel(rawUrl: string): string {
+  const url = rawUrl.trim();
+  const match =
+    /^[a-z][a-z0-9+.-]*:\/\/(?:[^/@]+@)?([^/:]+)(?::\d+)?\/(.+?)\/?$/i.exec(url) ??
+    /^(?:[^/@\s]+@)?([^/:\s]+):(?!\/)(.+?)\/?$/.exec(url);
+  if (!match) return redactUrl(url);
+  const host = match[1].toLowerCase();
+  const repo = match[2].replace(/\.git$/, "");
+  return host === "github.com" ? repo : `${host}/${repo}`;
 }
 
 export const runGit = async (args: string[]): Promise<string> => {

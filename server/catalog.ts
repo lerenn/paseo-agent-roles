@@ -7,7 +7,7 @@ import { describeError, EXTENSIONS, parseRole } from "./loader";
 export interface GitLayer {
   /** Stable id of the git source, as in GitStatus.id. */
   id: string;
-  /** Display label, e.g. "git: https://host/repo.git@main". */
+  /** Display label, e.g. "owner/repo@main". */
   label: string;
   /** The source's roles folder inside its local clone. */
   dir: string;

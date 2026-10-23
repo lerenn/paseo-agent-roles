@@ -4,7 +4,7 @@ import { roleSchema } from "./role";
 
 export const roleEntrySchema = z.object({
   name: z.string(),
-  /** Label of the git source, e.g. "git: https://host/repo.git@main". */
+  /** Label of the git source, e.g. "owner/repo@main". */
   origin: z.string(),
   /** Absolute file path. */
   file: z.string().optional(),
