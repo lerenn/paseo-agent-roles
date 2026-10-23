@@ -188,6 +188,7 @@ export function RolesScreen({ theme, layout, navigation, host }: PluginScreenPro
         error={openPr.error ? (openPr.error as Error).message : null}
         onCreatePr={(id) => openPr.mutate(id)}
         hasToken={(sourceId) => sources.find((g) => g.id === sourceId)?.hasToken ?? false}
+        labelFor={(sourceId, fallback) => sources.find((g) => g.id === sourceId)?.label ?? fallback}
       />
 
       <GitSourcesPanel
@@ -382,6 +383,7 @@ function ProposalsPanel(props: {
   error: string | null;
   onCreatePr(id: string): void;
   hasToken(sourceId: string): boolean;
+  labelFor(sourceId: string, fallback: string): string;
 }) {
   const { styles } = props;
   if (props.proposals.length === 0) return null;
@@ -393,7 +395,7 @@ function ProposalsPanel(props: {
         <View key={p.id} style={styles.field}>
           <Text style={styles.name}>{p.title}</Text>
           <Text style={styles.muted}>
-            {p.sourceLabel} · {new Date(p.createdAt).toLocaleString()} · commit {p.commit.slice(0, 8)}
+            {props.labelFor(p.sourceId, p.sourceLabel)} · {new Date(p.createdAt).toLocaleString()} · commit {p.commit.slice(0, 8)}
             {p.branch ? ` on ${p.branch}` : ` pushed to ${p.base}`}
           </Text>
           {p.fellBack ? <Text style={styles.muted}>Push was rejected ({p.fellBack}); proposed as a branch instead.</Text> : null}

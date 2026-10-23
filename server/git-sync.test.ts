@@ -91,14 +91,32 @@ describe("GitSources", () => {
     await sources.sync(source);
     const roles = await listRoles([{ id: sources.key(source), label: sourceLabel(source), dir: sources.rolesDir(source) }]);
     expect(roles).toHaveLength(1);
-    expect(roles[0]).toMatchObject({ name: "ev", origin: `git: ${origin}@main` });
+    expect(roles[0]).toMatchObject({ name: "ev", origin: `${origin}@main` });
   });
 });
 
 describe("labels", () => {
   it("never shows credentials", () => {
     expect(redactUrl("https://user:tok@github.com/a/b.git")).toBe("https://github.com/a/b.git");
-    expect(sourceLabel({ url: "https://u:p@h/r.git", ref: "v1" })).toBe("git: https://h/r.git@v1");
-    expect(sourceLabel({ url: "git@github.com:a/b.git" })).toBe("git: git@github.com:a/b.git@HEAD");
+    expect(sourceLabel({ url: "https://u:p@h/r.git", ref: "v1" })).toBe("h/r@v1");
+    expect(sourceLabel({ url: "git@github.com:a/b.git" })).toBe("a/b@HEAD");
+  });
+
+  it("shows owner/repo@ref on GitHub and host/owner/repo@ref elsewhere", () => {
+    const label = (url: string, ref = "main") => sourceLabel({ url, ref });
+    expect(label("git@github.com:anyshift-io/lfradin-lab.git")).toBe("anyshift-io/lfradin-lab@main");
+    expect(label("ssh://git@github.com/anyshift-io/lfradin-lab.git")).toBe("anyshift-io/lfradin-lab@main");
+    expect(label("ssh://git@github.com:22/a/b")).toBe("a/b@main");
+    expect(label("https://github.com/lerenn/paseo-agent-roles.git")).toBe("lerenn/paseo-agent-roles@main");
+    expect(label("https://github.com/lerenn/paseo-agent-roles")).toBe("lerenn/paseo-agent-roles@main");
+    expect(label("https://x-token:secret@github.com/a/b.git/")).toBe("a/b@main");
+    expect(label("git@gitlab.com:group/sub/repo.git", "v2")).toBe("gitlab.com/group/sub/repo@v2");
+    expect(label("https://git.example.org:8443/team/repo.git")).toBe("git.example.org/team/repo@main");
+    expect(label("GIT@GitHub.com:a/b.git")).toBe("a/b@main");
+  });
+
+  it("shows anything that is not a remote URL as given", () => {
+    expect(sourceLabel({ url: "/srv/git/roles.git", ref: "main" })).toBe("/srv/git/roles.git@main");
+    expect(sourceLabel({ url: "file:///srv/git/roles.git" })).toBe("file:///srv/git/roles.git@HEAD");
   });
 });
