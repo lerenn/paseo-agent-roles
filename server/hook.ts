@@ -1,10 +1,13 @@
 import type { PluginBeforeRequests, PluginHookContext } from "@getpaseo/plugin/server";
-import { ROLE_ENV } from "../shared/role";
+import { NO_ROLE_VALUE, PLUGIN_ID, ROLE_ENV, ROLE_OPTION_ID } from "../shared/role";
 import { applyRole } from "./apply";
 import type { AgentActivity, RoleLimits } from "./limits";
 import { loadRole } from "./loader";
 
-type CreateRequest = PluginBeforeRequests["agent.create"];
+// `pluginOptions` needs a host with create options; older SDK typings do not declare it.
+type CreateRequest = PluginBeforeRequests["agent.create"] & {
+  pluginOptions?: Record<string, Record<string, string>>;
+};
 type SessionOpen = PluginBeforeRequests["agent.session_open"];
 
 /** Activity of an agent as the daemon sees it: working, idle or finished, or no longer there. */
@@ -18,8 +21,16 @@ export async function agentActivity(context: PluginHookContext, agentId: string)
   }
 }
 
+/** The role picked in the Role picker, else the one named in PASEO_AGENT_ROLE. */
+function requestedRole(request: CreateRequest): string | undefined {
+  const picked = request.pluginOptions?.[PLUGIN_ID]?.[ROLE_OPTION_ID];
+  if (picked && picked !== NO_ROLE_VALUE) return picked;
+  return request.env?.[ROLE_ENV];
+}
+
 /**
- * The agent.create hook: if the request names a role in PASEO_AGENT_ROLE, look it up in the
+ * The agent.create hook: if the request picks a role (the Role picker) or names one in
+ * PASEO_AGENT_ROLE, look it up in the
  * git sources' role folders (`dirs`, in precedence order), enforce its concurrency limit and apply it.
  */
 export function agentCreateHook(dirs: () => Promise<string[]>, limits?: RoleLimits) {
@@ -27,7 +38,7 @@ export function agentCreateHook(dirs: () => Promise<string[]>, limits?: RoleLimi
     { request }: { request: CreateRequest },
     context?: PluginHookContext,
   ): Promise<CreateRequest | undefined> => {
-    const name = request.env?.[ROLE_ENV];
+    const name = requestedRole(request);
     if (!name) return;
     const folders = await dirs();
     const role = await loadRole(name, folders);

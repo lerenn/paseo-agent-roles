@@ -23,6 +23,19 @@ describe("agent.create hook", () => {
     expect(out?.env).toMatchObject({ PASEO_AGENT_ROLE: "r", PASEO_KUBE_TEMPLATE: "t" });
   });
 
+  it("applies the role picked in the Role picker, and ignores No role", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "hook-"));
+    await writeFile(path.join(dir, "r.yaml"), "name: r\nmodel: picked\n");
+    const create = agentCreateHook(async () => [dir]);
+    const withOptions = (role: string) => ({
+      request: { config: { provider: "claude", cwd: "/x" }, pluginOptions: { "agent-roles": { role } } },
+    });
+    const out = await create(withOptions("r"));
+    expect(out?.config.model).toBe("picked");
+    expect(out?.env).toMatchObject({ PASEO_AGENT_ROLE: "r" });
+    expect(await create(withOptions("~none"))).toBeUndefined();
+  });
+
   it("fails creation for an unknown role, saying where it looked", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "hook-"));
     await expect(agentCreateHook(async () => [dir])(request({ PASEO_AGENT_ROLE: "reviewer" }))).rejects.toThrow(

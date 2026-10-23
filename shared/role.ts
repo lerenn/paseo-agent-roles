@@ -2,6 +2,13 @@ import { z } from "zod";
 
 export const ROLE_ENV = "PASEO_AGENT_ROLE";
 
+/** The plugin id, as in paseo-plugin.json: the key of this plugin's `pluginOptions`. */
+export const PLUGIN_ID = "agent-roles";
+/** The id of the Role picker on the create composers (`client.addCreateOption`). */
+export const ROLE_OPTION_ID = "role";
+/** The picker value for "start without a role". Not a valid role name, so it cannot collide. */
+export const NO_ROLE_VALUE = "~none";
+
 /** Environment-variable names whose values are secrets: roles may only reference them. */
 const SECRET_KEY = /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE_?KEY)/i;
 /** Shapes of well-known secrets, refused wherever they appear in an env value. */

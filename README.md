@@ -14,7 +14,7 @@ paseo plugin add git:lerenn/paseo-agents-roles
 
 ## Choosing a role
 
-Paseo's `agent.create` hook receives only the agent config and its environment, so a role is selected through the environment variable `PASEO_AGENT_ROLE`:
+On the New workspace and new-agent composers, the **Role** picker next to the mode picker lists the roles (default **No role**, today's behaviour). Paseo hands the choice to the plugin's `agent.create` hook as `request.pluginOptions`. The picker needs a Paseo build with create options (`client.addCreateOption`); on an older host it does not appear. Everywhere else (CLI, MCP, schedules) a role is selected through the environment variable `PASEO_AGENT_ROLE`, which also wins when the picker is on No role:
 
 ```bash
 paseo run --env PASEO_AGENT_ROLE=reviewer "Review the current diff"
