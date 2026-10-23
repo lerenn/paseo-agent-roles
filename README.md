@@ -20,32 +20,24 @@ Paseo's `agent.create` hook receives only the agent config and its environment, 
 paseo run --env PASEO_AGENT_ROLE=reviewer "Review the current diff"
 ```
 
-Agents created without the variable are not touched. An unknown role name makes agent creation fail with the list of places searched. The variable stays set in the agent's environment so the agent can tell which role it runs as.
+Agents created without the variable are not touched. An unknown role name, or no git source at all, makes agent creation fail with an explanation. The variable stays set in the agent's environment so the agent can tell which role it runs as.
 
 ## The Agent roles screen
 
-The plugin adds an **Agent roles** item to the sidebar (reorder or hide it in Settings > Sidebar). The screen lists every role with its source, shows its prompt, model, tools and environment, and lets you:
+The plugin adds an **Agent roles** item to the sidebar (reorder or hide it in Settings > Sidebar). Roles come only from [git sources](#git-sources); with none configured the screen says "Add a git source to load roles". Otherwise it lists every role with its source, shows its prompt, model, tools and environment, and lets you:
 
-- create a role, edit your own roles, or copy a project or git role into your user roles (saved to `~/.paseo/roles/<name>.yaml`) and delete user roles;
+- create, edit or delete a role: the change is written to a git source (you pick one when there are several) through the [write flow](#writing-roles-to-git), a pull request by default;
 - start a new agent with a role: pick a workspace and provider, optionally type a first prompt, and the agent is created with `PASEO_AGENT_ROLE` set.
-
-Project roles show up for the workspace chosen at the top of the screen. Project role files are not edited from the screen; copy one to your user roles to change it.
 
 ## Where roles are found
 
-First match wins, highest priority first:
+Only in the folders of the configured git sources. If two sources hold a role of the same name, the one listed first wins. There are no project-local, per-user or built-in roles. To keep roles next to a project, point a git source at that project's repository and folder.
 
-1. **project**: `<agent cwd>/.paseo/roles/<name>.{yaml,yml,json}` (commit these with the project)
-2. **user**: `~/.paseo/roles/<name>.{yaml,yml,json}`
-3. **git source(s)**: a folder of each configured git repository, in the order they are listed
-
-The plugin ships no roles of its own: until you create one or add a source, the screen is empty and `PASEO_AGENT_ROLE` names nothing. Five generic starting points (`implementer`, `reviewer`, `qa`, `investigator`, `babysitter`) live in [`docs/examples/roles`](docs/examples/roles). They are never loaded; copy the ones you want into `~/.paseo/roles/` or your project's `.paseo/roles/`, or point a git source at that folder.
-
-The screen shows the source of each role (`project`, `user` or `git: <repo>@<ref>`) and which lower-priority roles it hides.
+Five generic starting points (`implementer`, `reviewer`, `qa`, `investigator`, `babysitter`) live in [`docs/examples/roles`](docs/examples/roles). They are never loaded: copy the ones you want into your own roles repository, or point a git source at that folder.
 
 ## Git sources
 
-Keep a team's roles in a repository and let every daemon pick them up. Git is optional and off by default: nothing is cloned until you add a source. On the Agent roles screen, under **Git sources**, add one or more sources:
+Keep a team's roles in a repository and let every daemon pick them up. Nothing is cloned or loaded until you add a source. On the Agent roles screen, under **Git sources**, add one or more sources:
 
 | Field | Meaning |
 |---|---|
@@ -62,16 +54,14 @@ This repository's [`docs/examples/roles`](docs/examples/roles) folder works as a
 
 ### Writing roles to git
 
-You can edit and delete git roles on the screen, and promote one of your user roles with **Save to git**. Each save fetches the latest remote tip, applies the change on top of it, commits as `agent-roles: create|update|delete <role>` (using the daemon's git identity), and then, depending on the source's mode:
+You create, edit and delete roles on the screen. Each save fetches the latest remote tip, applies the change on top of it, commits as `agent-roles: create|update|delete <role>` (using the daemon's git identity), and then, depending on the source's mode:
 
 - **`pull-request`** (default): pushes a branch `agent-roles/<role>-<timestamp>` and shows the commit, the branch and a prefilled compare link (title `agent-roles: update <role>`, body listing the changed files). The role itself is unchanged until the PR is merged and synced.
 - **`push`**: commits and pushes to the configured branch. If the push is rejected (for example by branch protection), the change is pushed to a branch instead and offered as a pull request, with the reason shown.
 
-If the fetch or push fails, nothing is saved: the edit stays in the editor with the error and a suggestion to use pull-request mode.
+If the fetch or push fails, nothing is saved: the edit stays in the editor with the error and a suggestion to use pull-request mode. A role created in pull-request mode appears in the list once its PR is merged and the source synced.
 
 **Creating the PR.** Without a token the screen links to the forge's prefilled "new pull request" page, so no token is needed. With a forge token set for the source, **Create PR** opens it through the forge API and the screen then shows the PR link and its state (open, closed, merged). GitHub is implemented (fine-grained token with *Pull requests: write* on the repository); the forge interface in `server/forge.ts` is the extension point for others. The token is stored on the daemon (`~/.paseo/agent-roles/forge-tokens.json`, mode 0600), is write-only (the screen only shows set or not set) and is never put in settings or sent back to the app.
-
-**Promotion.** *Save to git* on a user role writes it to the chosen source through the same flow. Once the change is merged and the source synced, the local copy in `~/.paseo/roles` is removed automatically, only if it still matches the git copy.
 
 ## Role file format
 

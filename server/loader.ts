@@ -1,17 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
 import { ZodError } from "zod";
 import { roleNameSchema, roleSchema, type Role } from "../shared/role";
 
 export const EXTENSIONS = [".yaml", ".yml", ".json"];
-
-/** Per-user roles directory. */
-export const userRolesDir = path.join(homedir(), ".paseo", "roles");
-
-/** Where project-owned roles live, relative to the agent's working directory. */
-export const projectRolesPath = path.join(".paseo", "roles");
 
 /** One-line message for a parse or validation failure. */
 export function describeError(error: unknown): string {

@@ -1,22 +1,16 @@
-import path from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { applyRole } from "./server/apply";
-import { deleteUserRole, saveUserRole } from "./server/catalog";
-import { GitSources, sourceLabel } from "./server/git-sync";
-import { loadRole, projectRolesPath, userRolesDir } from "./server/loader";
+import { GitSources } from "./server/git-sync";
+import { agentCreateHook } from "./server/hook";
 import { ProposalStore } from "./server/proposals";
 import { RolesService } from "./server/service";
 import { TokenStore } from "./server/tokens";
-import { ROLE_ENV } from "./shared/role";
 import {
   clearTokenRpc,
   createPullRequestRpc,
   deleteGitRoleRpc,
-  deleteRoleRpc,
   listProposalsRpc,
   listRolesRpc,
   saveGitRoleRpc,
-  saveRoleRpc,
   setTokenRpc,
   syncSourcesRpc,
 } from "./shared/rpc";
@@ -36,7 +30,6 @@ export default function contribute(server: PluginServerContext) {
     tokens,
     proposals: new ProposalStore(),
     configured,
-    userDir: userRolesDir,
   });
 
   void configured().then((sources) => gitSources.configure(sources));
@@ -44,45 +37,22 @@ export default function contribute(server: PluginServerContext) {
     gitSources.configure(state.status === "ready" ? state.values.sources : []);
   });
 
-  const removeHook = server.before("agent.create", async ({ request }) => {
-    const name = request.env?.[ROLE_ENV];
-    if (!name) return;
-    const sources = await configured();
-    const dirs = [
-      path.join(request.config.cwd, projectRolesPath),
-      userRolesDir,
-      ...sources.map((s) => gitSources.rolesDir(s)),
-    ];
-    const role = await loadRole(name, dirs);
-    if (!role) {
-      throw new Error(`${ROLE_ENV}=${name}: no such role (looked in ${dirs.join(", ")})`);
-    }
-    return applyRole(request, role);
-  });
+  const removeHook = server.before(
+    "agent.create",
+    agentCreateHook(async () => (await configured()).map((s) => gitSources.rolesDir(s))),
+  );
 
-  server.handle(listRolesRpc, async ({ cwd }) => {
-    const sources = await configured();
-    return {
-      roles: await service.list(cwd, {
-        user: userRolesDir,
-        git: sources.map((s) => ({ label: sourceLabel(s), dir: gitSources.rolesDir(s) })),
-      }),
-      userDir: userRolesDir,
-      git: service.statuses(sources),
-    };
-  });
+  server.handle(listRolesRpc, async () => ({
+    roles: await service.list(),
+    git: service.statuses(await configured()),
+  }));
   server.handle(syncSourcesRpc, async () => {
     const sources = await configured();
     await gitSources.syncAll(sources);
     return { git: service.statuses(sources) };
   });
-  server.handle(saveRoleRpc, ({ text }) => saveUserRole(text));
-  server.handle(deleteRoleRpc, async ({ name }) => {
-    await deleteUserRole(name);
-    return {};
-  });
-  server.handle(saveGitRoleRpc, async ({ sourceId, text, promoteFrom }) => ({
-    proposal: await service.save(sourceId, text, promoteFrom),
+  server.handle(saveGitRoleRpc, async ({ sourceId, text }) => ({
+    proposal: await service.save(sourceId, text),
   }));
   server.handle(deleteGitRoleRpc, async ({ sourceId, name }) => ({
     proposal: await service.remove(sourceId, name),

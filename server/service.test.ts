@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitSourceSchema } from "../shared/settings";
@@ -35,8 +33,6 @@ async function setup(over: Record<string, unknown> = {}) {
   const sources = new GitSources(path.join(root, "git"));
   const source = gitSourceSchema.parse({ url: origin.bare, ref: "main", path: "roles", ...over });
   await sources.sync(source);
-  const userDir = path.join(root, "user");
-  await mkdir(userDir);
   const forge = fakeForge();
   const tokens = new TokenStore(path.join(root, "tokens.json"));
   const service = new RolesService({
@@ -44,10 +40,9 @@ async function setup(over: Record<string, unknown> = {}) {
     tokens,
     proposals: new ProposalStore(path.join(root, "proposals.json")),
     configured: async () => [source],
-    userDir,
     forges: [forge.forge],
   });
-  return { origin, sources, source, service, userDir, tokens, forge, root };
+  return { origin, sources, source, service, tokens, forge, root };
 }
 
 describe("RolesService", () => {
@@ -106,35 +101,18 @@ describe("RolesService", () => {
     await expect(service.save(service.id(source), "name: ev\nmodel: x")).rejects.toThrow(/Not saved.*pull-request mode/);
   });
 
-  it("promotes a user role: kept until the pull request is merged and synced, then removed", async () => {
-    const { service, source, sources, userDir, origin } = await setup();
-    const text = "name: mine\nmodel: m\n";
-    await writeFile(path.join(userDir, "mine.yaml"), text);
-    const p = await service.save(service.id(source), text, "mine");
-    expect(p).toMatchObject({ role: "mine", action: "create", promotedFrom: "mine" });
-    await service.proposals();
-    expect(existsSync(path.join(userDir, "mine.yaml"))).toBe(true);
-
-    // merge the branch upstream, then sync
-    git(origin.work, "fetch", "-q", "origin", p.branch!);
-    git(origin.work, "merge", "-q", "--ff-only", "FETCH_HEAD");
-    git(origin.work, "push", "-q", "origin", "main");
-    await sources.sync(source);
-    const [after] = await service.proposals();
-    expect(after.localCopyRemoved).toBe(true);
-    expect(existsSync(path.join(userDir, "mine.yaml"))).toBe(false);
-    expect(await readFile(path.join(sources.rolesDir(source), "mine.yaml"), "utf8")).toBe(text);
+  it("lists roles from the configured sources, tagged with their source id", async () => {
+    const { service, source } = await setup();
+    const roles = await service.list();
+    expect(roles).toHaveLength(1);
+    expect(roles[0]).toMatchObject({ name: "ev", sourceId: service.id(source) });
   });
 
-  it("keeps a promoted local copy that has changed since", async () => {
-    const { service, source, sources, userDir, origin } = await setup({ writeMode: "push" });
-    await writeFile(path.join(userDir, "mine.yaml"), "name: mine\n");
-    await service.save(service.id(source), "name: mine\n", "mine");
-    await writeFile(path.join(userDir, "mine.yaml"), "name: mine\nmodel: edited-since\n");
-    await sources.sync(source);
-    await service.proposals();
-    expect(existsSync(path.join(userDir, "mine.yaml"))).toBe(true);
-    void origin;
+  it("creates a new role through a proposal", async () => {
+    const { service, source } = await setup();
+    const p = await service.save(service.id(source), "name: fresh\nsystemPrompt: hi\n");
+    expect(p).toMatchObject({ role: "fresh", action: "create", title: "agent-roles: create fresh" });
+    expect(p.body).toContain("(added)");
   });
 
   it("rejects an invalid role before touching git", async () => {

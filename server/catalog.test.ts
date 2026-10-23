@@ -1,55 +1,38 @@
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { deleteUserRole, listRoles, saveUserRole } from "./catalog";
+import { listRoles, type GitLayer } from "./catalog";
 
 const tmp = () => mkdtemp(path.join(tmpdir(), "catalog-"));
+const layer = async (label: string, files: Record<string, string> = {}): Promise<GitLayer> => {
+  const dir = await tmp();
+  for (const [name, text] of Object.entries(files)) await writeFile(path.join(dir, name), text);
+  return { id: label, label: `git: ${label}@main`, dir };
+};
 
 describe("role catalog", () => {
-  it("lists nothing when no roles exist anywhere", async () => {
-    expect(await listRoles(undefined, { user: await tmp() })).toEqual([]);
+  it("is empty with no git sources, or when their folders are empty or missing", async () => {
+    expect(await listRoles([])).toEqual([]);
+    expect(await listRoles([await layer("a")])).toEqual([]);
+    expect(await listRoles([{ id: "x", label: "x", dir: path.join(await tmp(), "missing") }])).toEqual([]);
   });
 
-  it("reports the winning source and what it overrides", async () => {
-    const user = await tmp();
-    const project = await tmp();
-    await mkdir(path.join(project, ".paseo", "roles"), { recursive: true });
-    await writeFile(path.join(project, ".paseo", "roles", "qa.yaml"), "name: qa\nmodel: p\n");
-    await writeFile(path.join(user, "qa.yaml"), "name: qa\nmodel: u\n");
-    await writeFile(path.join(user, "mine.yaml"), "name: mine\n");
-    const roles = await listRoles(project, { user });
+  it("lists roles with their source and an earlier source winning a name clash", async () => {
+    const a = await layer("a", { "qa.yaml": "name: qa\nmodel: a\n", "only-a.yaml": "name: only-a\n" });
+    const b = await layer("b", { "qa.yaml": "name: qa\nmodel: b\n", "only-b.json": JSON.stringify({ name: "only-b" }) });
+    const roles = await listRoles([a, b]);
+    expect(roles.map((r) => r.name)).toEqual(["only-a", "only-b", "qa"]);
     const qa = roles.find((r) => r.name === "qa");
-    expect(qa).toMatchObject({ source: "project", overrides: ["user"] });
-    expect(qa?.role?.model).toBe("p");
-    expect(roles.find((r) => r.name === "mine")?.source).toBe("user");
+    expect(qa).toMatchObject({ sourceId: "a", origin: "git: a@main", overrides: ["git: b@main"] });
+    expect(qa?.role?.model).toBe("a");
   });
 
-  it("surfaces invalid files instead of hiding them", async () => {
-    const user = await tmp();
-    await writeFile(path.join(user, "bad.yaml"), "name: bad\nnope: 1\n");
-    await writeFile(path.join(user, "Not Valid.yaml"), "name: x\n");
-    const roles = await listRoles(undefined, { user });
-    expect(roles.find((r) => r.name === "bad")).toMatchObject({ source: "user" });
-    expect(roles.find((r) => r.name === "bad")?.error).toMatch(/nope|Unrecognized/);
-    expect(roles.some((r) => r.name === "Not Valid")).toBe(false);
-  });
-
-  it("saves, replaces and deletes user roles", async () => {
-    const user = await tmp();
-    await writeFile(path.join(user, "r.json"), JSON.stringify({ name: "r", model: "old" }));
-    const { file } = await saveUserRole("name: r\nmodel: new", { user });
-    expect(file).toBe(path.join(user, "r.yaml"));
-    expect(await readdir(user)).toEqual(["r.yaml"]);
-    expect(await readFile(file, "utf8")).toBe("name: r\nmodel: new\n");
-    await deleteUserRole("r", { user });
-    expect(await readdir(user)).toEqual([]);
-  });
-
-  it("rejects invalid role text with a readable message", async () => {
-    const user = await tmp();
-    await expect(saveUserRole("name: Bad Name", { user })).rejects.toThrow(/name: /);
-    await expect(deleteUserRole("../x", { user })).rejects.toThrow();
-    expect(await readdir(user)).toEqual([]);
+  it("surfaces invalid files instead of hiding them, and ignores other files", async () => {
+    const a = await layer("a", { "bad.yaml": "name: bad\nnope: 1\n", "Not Valid.yaml": "name: x\n", "README.md": "hi" });
+    await mkdir(path.join(a.dir, "sub"));
+    const roles = await listRoles([a]);
+    expect(roles.map((r) => r.name)).toEqual(["bad"]);
+    expect(roles[0].error).toMatch(/nope|Unrecognized/);
   });
 });

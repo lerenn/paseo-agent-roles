@@ -84,18 +84,14 @@ describe("GitSources", () => {
     expect(clones).toBe(1);
   });
 
-  it("feeds the role catalog as a git layer below user roles", async () => {
+  it("feeds the role catalog", async () => {
     const origin = await makeOrigin();
     const sources = new GitSources(await tmp());
     const source = { url: origin, ref: "main", path: "roles", intervalMinutes: 5 };
     await sources.sync(source);
-    const user = await tmp();
-    await writeFile(path.join(user, "qa.yaml"), "name: qa\n");
-    const git2 = { label: sourceLabel(source), dir: sources.rolesDir(source) };
-    const roles = await listRoles(undefined, { user, git: [git2] });
-    expect(roles.find((r) => r.name === "ev")).toMatchObject({ source: "git", origin: `git: ${origin}@main` });
-    expect(roles.find((r) => r.name === "qa")?.source).toBe("user");
-    expect(roles.map((r) => r.name).sort()).toEqual(["ev", "qa"]);
+    const roles = await listRoles([{ id: sources.key(source), label: sourceLabel(source), dir: sources.rolesDir(source) }]);
+    expect(roles).toHaveLength(1);
+    expect(roles[0]).toMatchObject({ name: "ev", origin: `git: ${origin}@main` });
   });
 });
 
