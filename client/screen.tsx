@@ -438,12 +438,15 @@ function ProposalsPanel(props: {
   labelFor(sourceId: string, fallback: string): string;
 }) {
   const { styles } = props;
+  const [open, setOpen] = useState(false);
   if (props.proposals.length === 0) return null;
   return (
     <View style={styles.panel}>
-      <Text style={styles.heading}>Changes sent to git</Text>
-      {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
-      {props.proposals.slice(0, 8).map((p) => (
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel="Changes sent to git" onPress={() => setOpen((v) => !v)}>
+        <Text style={styles.heading}>{open ? "▾" : "▸"} Changes sent to git ({props.proposals.length})</Text>
+      </Pressable>
+      {open && props.error ? <Text style={styles.error}>{props.error}</Text> : null}
+      {open && props.proposals.slice(0, 8).map((p) => (
         <View key={p.id} style={styles.field}>
           <Text style={styles.name}>{p.title}</Text>
           <Text style={styles.muted}>
