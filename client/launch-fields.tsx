@@ -19,16 +19,16 @@ export function LaunchFields({ text, onChange }: { text: string; onChange(text: 
   const mode = readField(text, "modeId");
 
   const providers = useQuery({
-    queryKey: ["agent-roles", "providers"],
+    queryKey: ["agents-roles", "providers"],
     queryFn: async () => (await paseo.providers.listAvailable()).providers.filter((p) => p.available).map((p) => p.provider),
   });
   const models = useQuery({
-    queryKey: ["agent-roles", "models", provider],
+    queryKey: ["agents-roles", "models", provider],
     queryFn: async () => (await paseo.providers.listModels(provider!)).models ?? [],
     enabled: Boolean(provider),
   });
   const modes = useQuery({
-    queryKey: ["agent-roles", "modes", provider],
+    queryKey: ["agents-roles", "modes", provider],
     queryFn: async () => (await paseo.providers.listModes(provider!)).modes ?? [],
     enabled: Boolean(provider),
   });

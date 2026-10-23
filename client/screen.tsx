@@ -53,17 +53,17 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
 
   const styles = useMemo(() => makeStyles(theme, layout.compact), [theme, layout.compact]);
 
-  const roles = useQuery({ queryKey: ["agent-roles", "roles"], queryFn: () => listRoles({}) });
+  const roles = useQuery({ queryKey: ["agents-roles", "roles"], queryFn: () => listRoles({}) });
   const sources = roles.data?.git ?? [];
   const entry = roles.data?.roles.find((r) => r.name === selected) ?? null;
 
   const proposals = useQuery({
-    queryKey: ["agent-roles", "proposals"],
+    queryKey: ["agents-roles", "proposals"],
     queryFn: async () => (await listProposals({})).proposals,
     refetchInterval: 30_000,
   });
   const refreshAll = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["agent-roles"] });
+    await queryClient.invalidateQueries({ queryKey: ["agents-roles"] });
   };
   const saveGit = useMutation({
     mutationFn: (v: { sourceId: string; text: string }) => saveGitRole(v),
@@ -534,11 +534,11 @@ function StartAgent(props: { entry: RoleEntry; styles: Styles; navigation: Plugi
   const [provider, setProvider] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const workspaces = useQuery({
-    queryKey: ["agent-roles", "workspaces"],
+    queryKey: ["agents-roles", "workspaces"],
     queryFn: async () => (await paseo.workspaces.list()).entries,
   });
   const providers = useQuery({
-    queryKey: ["agent-roles", "providers"],
+    queryKey: ["agents-roles", "providers"],
     queryFn: async () => (await paseo.providers.listAvailable()).providers.filter((p) => p.available).map((p) => p.provider),
   });
   const workspace = workspaces.data?.find((w) => w.id === workspaceId) ?? workspaces.data?.[0];

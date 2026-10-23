@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import type { Proposal } from "../shared/rpc";
 
-export const defaultProposalsPath = path.join(homedir(), ".paseo", "agent-roles", "proposals.json");
+export const defaultProposalsPath = path.join(homedir(), ".paseo", "agents-roles", "proposals.json");
 const MAX_KEPT = 50;
 
 /** Recent changes written to git sources, so the UI can show their commit, branch and pull request. */

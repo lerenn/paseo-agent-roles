@@ -25,21 +25,21 @@ describe("writeChange", () => {
     expect(r).toMatchObject({
       outcome: "branch",
       action: "update",
-      branch: "agent-roles/ev-20261023123456",
+      branch: "agents-roles/ev-20261023123456",
       base: "main",
-      message: "agent-roles: update ev",
+      message: "agents-roles: update ev",
       files: ["roles/ev.yaml"],
     });
     expect(git(origin.bare, "show", `${r.branch}:roles/ev.yaml`)).toContain("v2");
     expect(onMain("roles/ev.yaml")).toContain("v1");
     expect(await readFile(cached("ev.yaml"), "utf8")).toContain("v1");
-    expect(git(origin.bare, "log", "-1", "--format=%s", r.branch!).trim()).toBe("agent-roles: update ev");
+    expect(git(origin.bare, "log", "-1", "--format=%s", r.branch!).trim()).toBe("agents-roles: update ev");
   });
 
   it("push mode commits to the ref", async () => {
     const { origin, sources, source, onMain } = await setup({ writeMode: "push" });
     const r = await writeChange(sources, source, { name: "fresh", text: "name: fresh" }, NOW);
-    expect(r).toMatchObject({ outcome: "pushed", action: "create", message: "agent-roles: create fresh" });
+    expect(r).toMatchObject({ outcome: "pushed", action: "create", message: "agents-roles: create fresh" });
     expect(onMain("roles/fresh.yaml")).toBe("name: fresh\n");
     expect(git(origin.bare, "rev-parse", "main").trim()).toBe(r.commit);
   });
@@ -65,7 +65,7 @@ describe("writeChange", () => {
   it("deletes a role", async () => {
     const { sources, source, cached, onMain } = await setup({ writeMode: "push" });
     const r = await writeChange(sources, source, { name: "ev", delete: true }, NOW);
-    expect(r).toMatchObject({ action: "delete", message: "agent-roles: delete ev" });
+    expect(r).toMatchObject({ action: "delete", message: "agents-roles: delete ev" });
     expect(() => onMain("roles/ev.yaml")).toThrow();
     expect(existsSync(cached("ev.yaml"))).toBe(false);
     await expect(writeChange(sources, source, { name: "ev", delete: true }, NOW)).rejects.toThrow(/No role/);

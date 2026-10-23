@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-export const defaultTokensPath = path.join(homedir(), ".paseo", "agent-roles", "forge-tokens.json");
+export const defaultTokensPath = path.join(homedir(), ".paseo", "agents-roles", "forge-tokens.json");
 
 /**
  * Forge tokens, one per git source. Write-only from the UI's point of view: nothing here is ever
