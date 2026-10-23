@@ -2,10 +2,11 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
+import { ZodError } from "zod";
 import { bundledRoles } from "./bundled";
 import { roleNameSchema, roleSchema, type Role } from "../shared/role";
 
-const EXTENSIONS = [".yaml", ".yml", ".json"];
+export const EXTENSIONS = [".yaml", ".yml", ".json"];
 
 /** Per-user roles directory. */
 export const userRolesDir = path.join(homedir(), ".paseo", "roles");
@@ -13,9 +14,21 @@ export const userRolesDir = path.join(homedir(), ".paseo", "roles");
 /** Where project-owned roles live, relative to the agent's working directory. */
 export const projectRolesPath = path.join(".paseo", "roles");
 
+/** One-line message for a parse or validation failure. */
+export function describeError(error: unknown): string {
+  if (error instanceof ZodError) {
+    return error.issues.map((issue) => `${issue.path.join(".") || "role"}: ${issue.message}`).join("; ");
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Parse role text without checking it against a file name. YAML also reads JSON. */
+export function parseRoleText(source: string): Role {
+  return roleSchema.parse(parse(source));
+}
+
 export function parseRole(source: string, file: string): Role {
-  const raw = file.endsWith(".json") ? JSON.parse(source) : parse(source);
-  const role = roleSchema.parse(raw);
+  const role = parseRoleText(source);
   const expected = path.basename(file, path.extname(file));
   if (role.name !== expected) {
     throw new Error(`${file}: role name "${role.name}" must match the file name "${expected}"`);
@@ -39,7 +52,7 @@ export async function loadRole(name: string, dirs: string[]): Promise<Role | nul
       try {
         return parseRole(source, file);
       } catch (error) {
-        throw new Error(`Invalid role file ${file}: ${(error as Error).message}`);
+        throw new Error(`Invalid role file ${file}: ${describeError(error)}`);
       }
     }
   }

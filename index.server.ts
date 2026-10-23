@@ -1,11 +1,13 @@
 import path from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { applyRole } from "./server/apply";
+import { deleteUserRole, listRoles, saveUserRole } from "./server/catalog";
 import { loadRole, projectRolesPath, userRolesDir } from "./server/loader";
 import { ROLE_ENV } from "./shared/role";
+import { deleteRoleRpc, listRolesRpc, saveRoleRpc } from "./shared/rpc";
 
 export default function contribute(server: PluginServerContext) {
-  const remove = server.before("agent.create", async ({ request }) => {
+  const removeHook = server.before("agent.create", async ({ request }) => {
     const name = request.env?.[ROLE_ENV];
     if (!name) return;
     const dirs = [path.join(request.config.cwd, projectRolesPath), userRolesDir];
@@ -15,5 +17,16 @@ export default function contribute(server: PluginServerContext) {
     }
     return applyRole(request, role);
   });
-  return remove;
+
+  server.handle(listRolesRpc, async ({ cwd }) => ({
+    roles: await listRoles(cwd),
+    userDir: userRolesDir,
+  }));
+  server.handle(saveRoleRpc, ({ text }) => saveUserRole(text));
+  server.handle(deleteRoleRpc, async ({ name }) => {
+    await deleteUserRole(name);
+    return {};
+  });
+
+  return removeHook;
 }

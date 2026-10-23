@@ -22,6 +22,15 @@ paseo run --env PASEO_AGENT_ROLE=reviewer "Review the current diff"
 
 Agents created without the variable are not touched. An unknown role name makes agent creation fail with the list of places searched. The variable stays set in the agent's environment so the agent can tell which role it runs as.
 
+## The Agent roles screen
+
+The plugin adds an **Agent roles** item to the sidebar (reorder or hide it in Settings > Sidebar). The screen lists every role with its source, shows its prompt, model, tools and environment, and lets you:
+
+- create a role, edit your own roles, or copy a bundled or project role into your user roles (saved to `~/.paseo/roles/<name>.yaml`) and delete user roles;
+- start a new agent with a role: pick a workspace and provider, optionally type a first prompt, and the agent is created with `PASEO_AGENT_ROLE` set.
+
+Project roles show up for the workspace chosen at the top of the screen. Project role files are not edited from the screen; copy one to your user roles to change it.
+
 ## Where roles are found
 
 First match wins:
