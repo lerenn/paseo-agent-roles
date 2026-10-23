@@ -6,11 +6,19 @@ import type { RoleEntry, RoleSource } from "../shared/rpc";
 import { bundledRoles } from "./bundled";
 import { describeError, EXTENSIONS, parseRole, parseRoleText, projectRolesPath, userRolesDir } from "./loader";
 
-export interface CatalogDirs {
-  user: string;
+export interface GitLayer {
+  /** Display label, e.g. "git: https://host/repo.git@main". */
+  label: string;
+  dir: string;
 }
 
-async function readDir(dir: string, source: RoleSource): Promise<Omit<RoleEntry, "overrides">[]> {
+export interface CatalogDirs {
+  user: string;
+  /** Git source folders, in precedence order. */
+  git?: GitLayer[];
+}
+
+async function readDir(dir: string, source: RoleSource, origin: string = source): Promise<Omit<RoleEntry, "overrides">[]> {
   let files: string[];
   try {
     files = await readdir(dir);
@@ -29,9 +37,9 @@ async function readDir(dir: string, source: RoleSource): Promise<Omit<RoleEntry,
     const file = path.join(dir, base);
     const text = await readFile(file, "utf8");
     try {
-      entries.push({ name, source, file, text, role: parseRole(text, file) });
+      entries.push({ name, source, origin, file, text, role: parseRole(text, file) });
     } catch (error) {
-      entries.push({ name, source, file, text, error: describeError(error) });
+      entries.push({ name, source, origin, file, text, error: describeError(error) });
     }
   }
   return entries;
@@ -45,9 +53,11 @@ export async function listRoles(
   const layers: Omit<RoleEntry, "overrides">[][] = [
     cwd ? await readDir(path.join(cwd, projectRolesPath), "project") : [],
     await readDir(dirs.user, "user"),
+    ...(await Promise.all((dirs.git ?? []).map((g) => readDir(g.dir, "git", g.label)))),
     Object.values(bundledRoles).map((role) => ({
       name: role.name,
       source: "bundled" as const,
+      origin: "bundled",
       text: stringify(role),
       role,
     })),
@@ -56,7 +66,7 @@ export async function listRoles(
   for (const layer of layers) {
     for (const entry of layer) {
       const winner = byName.get(entry.name);
-      if (winner) winner.overrides.push(entry.source);
+      if (winner) winner.overrides.push(entry.origin);
       else byName.set(entry.name, { ...entry, overrides: [] });
     }
   }

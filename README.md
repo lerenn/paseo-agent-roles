@@ -33,11 +33,29 @@ Project roles show up for the workspace chosen at the top of the screen. Project
 
 ## Where roles are found
 
-First match wins:
+First match wins, highest priority first:
 
-1. `<agent cwd>/.paseo/roles/<name>.{yaml,yml,json}` (commit these with the project)
-2. `~/.paseo/roles/<name>.{yaml,yml,json}`
-3. Bundled examples: `implementer`, `reviewer`, `qa`, `investigator`, `babysitter`
+1. **project**: `<agent cwd>/.paseo/roles/<name>.{yaml,yml,json}` (commit these with the project)
+2. **user**: `~/.paseo/roles/<name>.{yaml,yml,json}`
+3. **git source(s)**: a folder of each configured git repository, in the order they are listed
+4. **bundled** examples: `implementer`, `reviewer`, `qa`, `investigator`, `babysitter`
+
+The screen shows the source of each role (`git: <repo>@<ref>` for git sources) and which lower-priority roles it hides.
+
+## Git sources
+
+Keep a team's roles in a repository and let every daemon pick them up. On the Agent roles screen, under **Git sources**, add one or more sources:
+
+| Field | Meaning |
+|---|---|
+| Repository URL | Anything `git clone` accepts, e.g. `git@github.com:acme/agent-roles.git` or `https://github.com/lerenn/paseo-agent-roles.git` |
+| Branch or tag | Optional; the remote's default branch if empty |
+| Folder | Optional folder inside the repository that holds the role files, e.g. `roles` |
+| Sync interval | Minutes between fetches, default 5 |
+
+The plugin shallow-clones each source into `~/.paseo/agent-roles/git/` and fetches it on its interval (and when you press **Sync now**). It runs the daemon's `git`, so access uses whatever credentials the daemon already has (SSH key, credential helper); never put a token in the URL, as saved settings are not secret. Git roles are read-only in the UI (copy one to your user roles to change it) and show their last sync time. If a sync fails the error is shown and the last good copy keeps being used. Sources are stored in the plugin's host settings.
+
+This repository's [`examples/roles`](examples/roles) folder is a working example source: URL `https://github.com/lerenn/paseo-agent-roles.git`, folder `examples/roles`.
 
 ## Role file format
 

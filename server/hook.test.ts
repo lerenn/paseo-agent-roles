@@ -10,6 +10,7 @@ function register() {
   let handler: Handler | undefined;
   const cleanup = contribute({
     handle() {},
+    registerSettings: () => ({ read: async () => ({ status: "ready", values: { sources: [] } }), subscribe: () => () => {} }),
     before(name: string, h: Handler) {
       expect(name).toBe("agent.create");
       handler = h;
