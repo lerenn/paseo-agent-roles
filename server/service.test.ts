@@ -51,7 +51,7 @@ describe("RolesService", () => {
     const p = await service.save(service.id(source), "name: ev\nmodel: v2");
     expect(p).toMatchObject({
       outcome: "branch",
-      title: "agent-roles: update ev",
+      title: "agents-roles: update ev",
       sourceLabel: `${source.url}@main`,
       compareUrl: `https://forge.test/compare/main...${p.branch}`,
     });
@@ -67,7 +67,7 @@ describe("RolesService", () => {
     tokens.set(service.id(source), "tok");
     const opened = await service.createPullRequest(p.id);
     expect(opened.pr).toEqual({ number: 3, url: "https://forge.test/pull/3", state: "open" });
-    expect(forge.created[0]).toMatchObject({ token: "tok", title: "agent-roles: update ev", base: "main", head: p.branch });
+    expect(forge.created[0]).toMatchObject({ token: "tok", title: "agents-roles: update ev", base: "main", head: p.branch });
     forge.setState("merged");
     expect((await service.proposals())[0].pr?.state).toBe("merged");
   });
@@ -111,7 +111,7 @@ describe("RolesService", () => {
   it("creates a new role through a proposal", async () => {
     const { service, source } = await setup();
     const p = await service.save(service.id(source), "name: fresh\nsystemPrompt: hi\n");
-    expect(p).toMatchObject({ role: "fresh", action: "create", title: "agent-roles: create fresh" });
+    expect(p).toMatchObject({ role: "fresh", action: "create", title: "agents-roles: create fresh" });
     expect(p.body).toContain("(added)");
   });
 
@@ -124,7 +124,7 @@ describe("RolesService", () => {
   it("deletes a role through a proposal", async () => {
     const { service, source } = await setup();
     const p = await service.remove(service.id(source), "ev");
-    expect(p).toMatchObject({ action: "delete", title: "agent-roles: delete ev" });
+    expect(p).toMatchObject({ action: "delete", title: "agents-roles: delete ev" });
     expect(p.body).toContain("(removed)");
   });
 });

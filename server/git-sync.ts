@@ -12,7 +12,7 @@ type GitSource = Pick<ConfiguredSource, "url" | "ref" | "path" | "intervalMinute
 
 const execFileAsync = promisify(execFile);
 
-export const gitCacheRoot = path.join(homedir(), ".paseo", "agent-roles", "git");
+export const gitCacheRoot = path.join(homedir(), ".paseo", "agents-roles", "git");
 
 export interface SyncStatus {
   lastSync: string | null;

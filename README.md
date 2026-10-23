@@ -10,7 +10,7 @@ Requires Paseo >= 0.11.2.
 paseo plugin add git:lerenn/paseo-agents-roles
 ```
 
-(or install `lerenn/agent-roles` from the plugin registry once listed). The plugin runs `npm ci` on install.
+(or install `lerenn/agents-roles` from the plugin registry once listed). The plugin runs `npm ci` on install.
 
 ## Choosing a role
 
@@ -41,27 +41,27 @@ Keep a team's roles in a repository and let every daemon pick them up. Nothing i
 
 | Field | Meaning |
 |---|---|
-| Repository URL | Anything `git clone` accepts, e.g. `git@github.com:acme/agent-roles.git` or `https://github.com/lerenn/paseo-agents-roles.git` |
+| Repository URL | Anything `git clone` accepts, e.g. `git@github.com:acme/agents-roles.git` or `https://github.com/lerenn/paseo-agents-roles.git` |
 | Branch or tag | Optional; the remote's default branch if empty. Writing needs a branch. |
 | Folder | Optional folder inside the repository that holds the role files, e.g. `roles` |
 | Sync interval | Minutes between fetches, default 5 |
 | When you save a role change | `pull-request` (default) or `push`, see below |
 | Forge token | Optional, write-only; see below |
 
-The plugin shallow-clones each source into `~/.paseo/agent-roles/git/` and fetches it on its interval (and when you press **Sync now**). It runs the daemon's `git`, so access uses whatever credentials the daemon already has (SSH key, credential helper); never put a token in the URL, as saved settings are not secret. The screen shows each source's last sync time or error; if a sync fails, the last good copy keeps being used.
+The plugin shallow-clones each source into `~/.paseo/agents-roles/git/` and fetches it on its interval (and when you press **Sync now**). It runs the daemon's `git`, so access uses whatever credentials the daemon already has (SSH key, credential helper); never put a token in the URL, as saved settings are not secret. The screen shows each source's last sync time or error; if a sync fails, the last good copy keeps being used.
 
 This repository's [`docs/examples/roles`](docs/examples/roles) folder works as an example source: URL `https://github.com/lerenn/paseo-agents-roles.git`, folder `docs/examples/roles`.
 
 ### Writing roles to git
 
-You create, edit and delete roles on the screen. Each save fetches the latest remote tip, applies the change on top of it, commits as `agent-roles: create|update|delete <role>` (using the daemon's git identity), and then, depending on the source's mode:
+You create, edit and delete roles on the screen. Each save fetches the latest remote tip, applies the change on top of it, commits as `agents-roles: create|update|delete <role>` (using the daemon's git identity), and then, depending on the source's mode:
 
-- **`pull-request`** (default): pushes a branch `agent-roles/<role>-<timestamp>` and shows the commit, the branch and a prefilled compare link (title `agent-roles: update <role>`, body listing the changed files). The role itself is unchanged until the PR is merged and synced.
+- **`pull-request`** (default): pushes a branch `agents-roles/<role>-<timestamp>` and shows the commit, the branch and a prefilled compare link (title `agents-roles: update <role>`, body listing the changed files). The role itself is unchanged until the PR is merged and synced.
 - **`push`**: commits and pushes to the configured branch. If the push is rejected (for example by branch protection), the change is pushed to a branch instead and offered as a pull request, with the reason shown.
 
 If the fetch or push fails, nothing is saved: the edit stays in the editor with the error and a suggestion to use pull-request mode. A role created in pull-request mode appears in the list once its PR is merged and the source synced.
 
-**Creating the PR.** Without a token the screen links to the forge's prefilled "new pull request" page, so no token is needed. With a forge token set for the source, **Create PR** opens it through the forge API and the screen then shows the PR link and its state (open, closed, merged). GitHub is implemented (fine-grained token with *Pull requests: write* on the repository); the forge interface in `server/forge.ts` is the extension point for others. The token is stored on the daemon (`~/.paseo/agent-roles/forge-tokens.json`, mode 0600), is write-only (the screen only shows set or not set) and is never put in settings or sent back to the app.
+**Creating the PR.** Without a token the screen links to the forge's prefilled "new pull request" page, so no token is needed. With a forge token set for the source, **Create PR** opens it through the forge API and the screen then shows the PR link and its state (open, closed, merged). GitHub is implemented (fine-grained token with *Pull requests: write* on the repository); the forge interface in `server/forge.ts` is the extension point for others. The token is stored on the daemon (`~/.paseo/agents-roles/forge-tokens.json`, mode 0600), is write-only (the screen only shows set or not set) and is never put in settings or sent back to the app.
 
 ## Role file format
 
@@ -98,7 +98,7 @@ Application rules: scalar fields from the role (`provider`, `model`, `thinkingOp
 
 **Env and secrets.** A value may reference the daemon's environment as `${NAME}`, resolved when the agent starts; a missing variable fails creation saying which one. Role files are refused if they contain a secret: a well-known token shape, or a literal value under a key named like `*_TOKEN`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY` or `*_CREDENTIAL`. Reference those instead.
 
-**Concurrency.** `maxConcurrent: N` caps the agents of the role that are initializing or running (idle and archived agents do not count). Creating one more fails with `Role "x" is at its limit of N concurrent agents`; nothing is queued. The plugin learns which agents run which role when their session opens, and keeps that in `~/.paseo/agent-roles/role-agents.json` so a daemon restart does not forget them.
+**Concurrency.** `maxConcurrent: N` caps the agents of the role that are initializing or running (idle and archived agents do not count). Creating one more fails with `Role "x" is at its limit of N concurrent agents`; nothing is queued. The plugin learns which agents run which role when their session opens, and keeps that in `~/.paseo/agents-roles/role-agents.json` so a daemon restart does not forget them.
 
 **Defaults for other plugins** are plain environment those plugins already read, with no dependency on them: `plugins.kubeTemplate` sets `PASEO_KUBE_TEMPLATE` (Kube Agents), `plugins.warder` sets `PASEO_WARDER=on|off` (Agents Warder), and `plugins.warder: { mode: on, interval: 15m }` also sets its default check interval as `PASEO_WARDER_INTERVAL` (`15m`, `1h30m` or seconds), `plugins.ticket` sets `PASEO_AGENT_TICKET` (Agents Tickets Sync). Anything else another plugin reads can go in `env`.
 

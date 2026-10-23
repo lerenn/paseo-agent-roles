@@ -1,5 +1,5 @@
 {
-  "id": "agent-roles",
+  "id": "agents-roles",
   "name": "Agent Roles",
   "description": "Start agents from versioned role definitions: prompt, model, MCP servers, tool policy.",
   "requirements": {

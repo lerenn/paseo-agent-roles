@@ -77,7 +77,7 @@ async function doWrite(sources: GitSources, source: GitSource, change: Change, n
   }
   const tip = (await git("rev-parse", "FETCH_HEAD")).trim();
   const reset = async () => {
-    await git("checkout", "-q", "-B", "agent-roles-work", tip);
+    await git("checkout", "-q", "-B", "agents-roles-work", tip);
     await git("reset", "-q", "--hard", tip);
     await git("clean", "-fdq");
   };
@@ -101,14 +101,14 @@ async function doWrite(sources: GitSources, source: GitSource, change: Change, n
     }
     if (!(await git("diff", "--cached", "--name-only")).trim()) throw new NothingToCommit();
 
-    const message = `agent-roles: ${action} ${name}`;
+    const message = `agents-roles: ${action} ${name}`;
     const identity = await commitIdentity(git);
     await git(...identity, "commit", "-q", "-m", message);
     const commit = (await git("rev-parse", "HEAD")).trim();
     const common = { action, commit, base, message, files: [relative] };
 
     const pushBranch = async () => {
-      const branch = `agent-roles/${name}-${stamp(now)}`;
+      const branch = `agents-roles/${name}-${stamp(now)}`;
       await git("push", "origin", `HEAD:refs/heads/${branch}`);
       return branch;
     };
@@ -148,7 +148,7 @@ async function commitIdentity(git: (...args: string[]) => Promise<string>): Prom
   const get = (key: string) => git("config", "--get", key).then((v) => v.trim(), () => "");
   const [user, email] = await Promise.all([get("user.name"), get("user.email")]);
   return [
-    ...(user ? [] : ["-c", "user.name=Paseo agent-roles"]),
-    ...(email ? [] : ["-c", "user.email=agent-roles@paseo.invalid"]),
+    ...(user ? [] : ["-c", "user.name=Paseo agents-roles"]),
+    ...(email ? [] : ["-c", "user.email=agents-roles@paseo.invalid"]),
   ];
 }

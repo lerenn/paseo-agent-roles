@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-export const defaultRegistryPath = path.join(homedir(), ".paseo", "agent-roles", "role-agents.json");
+export const defaultRegistryPath = path.join(homedir(), ".paseo", "agents-roles", "role-agents.json");
 
 /** What a role's limit cares about: is this agent working, idle/finished, or gone. */
 export type AgentActivity = "active" | "inactive" | "gone";

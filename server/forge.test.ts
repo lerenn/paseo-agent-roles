@@ -21,9 +21,9 @@ describe("github forge", () => {
   });
 
   it("builds a prefilled compare URL", () => {
-    const url = new URL(forge.compareUrl(repo, { title: "agent-roles: update qa", body: "- roles/qa.yaml", base: "main", head: "agent-roles/qa-1" }));
-    expect(url.pathname).toBe("/acme/roles/compare/main...agent-roles%2Fqa-1");
-    expect(url.searchParams.get("title")).toBe("agent-roles: update qa");
+    const url = new URL(forge.compareUrl(repo, { title: "agents-roles: update qa", body: "- roles/qa.yaml", base: "main", head: "agents-roles/qa-1" }));
+    expect(url.pathname).toBe("/acme/roles/compare/main...agents-roles%2Fqa-1");
+    expect(url.searchParams.get("title")).toBe("agents-roles: update qa");
     expect(url.searchParams.get("body")).toBe("- roles/qa.yaml");
     expect(url.searchParams.get("expand")).toBe("1");
   });
