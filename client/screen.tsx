@@ -1,10 +1,11 @@
-import { usePaseo, useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
+import { usePaseo, useRpc, useSettings, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { SettingsInput, SettingsSelect } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ROLE_ENV } from "../shared/role";
-import { deleteRoleRpc, listRolesRpc, saveRoleRpc, type RoleEntry } from "../shared/rpc";
+import { deleteRoleRpc, listRolesRpc, saveRoleRpc, syncSourcesRpc, type GitStatus, type RoleEntry } from "../shared/rpc";
+import { DEFAULT_SYNC_MINUTES, gitSourceSchema, rolesSettings, type GitSource } from "../shared/settings";
 
 const TEMPLATE = `name: my-role
 description: What this role is for.
@@ -25,6 +26,7 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
   const listRoles = useRpc(listRolesRpc);
   const saveRole = useRpc(saveRoleRpc);
   const deleteRole = useRpc(deleteRoleRpc);
+  const syncSources = useRpc(syncSourcesRpc);
   const [workspaceId, setWorkspaceId] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -52,6 +54,10 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
       setSelected(name);
       await refresh();
     },
+  });
+  const sync = useMutation({
+    mutationFn: () => syncSources({}),
+    onSuccess: refresh,
   });
   const remove = useMutation({
     mutationFn: (name: string) => deleteRole({ name }),
@@ -97,7 +103,7 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
         >
           <View style={styles.row}>
             <Text style={styles.name}>{r.name}</Text>
-            <Text style={styles.badge}>{r.source}</Text>
+            <Text style={styles.badge}>{r.origin}</Text>
           </View>
           <Text style={r.error ? styles.error : styles.muted} numberOfLines={2}>
             {r.error ?? r.role?.description ?? ""}
@@ -132,8 +138,17 @@ export function RolesScreen({ theme, layout, navigation }: PluginScreenProps) {
           deleteError={remove.error ? (remove.error as Error).message : null}
           workspaceId={workspace?.id}
           navigation={navigation}
+          gitStatus={roles.data?.git.find((g) => g.label === entry.origin)}
         />
       ) : null}
+
+      <GitSourcesPanel
+        styles={styles}
+        statuses={roles.data?.git ?? []}
+        syncing={sync.isPending}
+        onSync={() => sync.mutate()}
+        onSaved={refresh}
+      />
     </ScrollView>
   );
 }
@@ -148,6 +163,7 @@ function Detail(props: {
   deleteError: string | null;
   workspaceId?: string;
   navigation: PluginScreenProps["navigation"];
+  gitStatus?: GitStatus;
 }) {
   const { entry, styles } = props;
   const role = entry.role;
@@ -159,9 +175,14 @@ function Detail(props: {
     <View style={styles.panel}>
       <View style={styles.row}>
         <Text style={styles.heading}>{entry.name}</Text>
-        <Text style={styles.badge}>{entry.source}</Text>
+        <Text style={styles.badge}>{entry.origin}</Text>
       </View>
       {entry.file ? <Text style={styles.muted}>{entry.file}</Text> : null}
+      {entry.source === "git" ? (
+        <Text style={props.gitStatus?.error ? styles.error : styles.muted}>
+          {gitStatusText(props.gitStatus)} Read-only: copy it to your user roles to change it.
+        </Text>
+      ) : null}
       {entry.overrides.length > 0 ? (
         <Text style={styles.muted}>Overrides the {entry.overrides.join(" and ")} role of the same name.</Text>
       ) : null}
@@ -187,6 +208,113 @@ function Detail(props: {
       {role && props.workspaceId ? (
         <StartAgent entry={entry} workspaceId={props.workspaceId} styles={styles} navigation={props.navigation} />
       ) : null}
+    </View>
+  );
+}
+
+function gitStatusText(status?: GitStatus): string {
+  if (!status) return "";
+  const synced = status.lastSync ? `Last synced ${new Date(status.lastSync).toLocaleString()}.` : "Not synced yet.";
+  const failure = status.error ? ` Last sync failed, using the previous copy: ${status.error}.` : "";
+  return `${status.syncing ? "Syncing… " : ""}${synced}${failure}`;
+}
+
+type Draft = { id: number; url: string; ref: string; path: string; interval: string };
+
+function GitSourcesPanel(props: {
+  styles: Styles;
+  statuses: GitStatus[];
+  syncing: boolean;
+  onSync(): void;
+  onSaved(): void;
+}) {
+  const { styles } = props;
+  const settings = useSettings(rolesSettings);
+  const nextId = useRef(0);
+  const [drafts, setDrafts] = useState<Draft[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const toDrafts = (sources: GitSource[]): Draft[] =>
+    sources.map((s) => ({
+      id: nextId.current++,
+      url: s.url,
+      ref: s.ref ?? "",
+      path: s.path ?? "",
+      interval: String(s.intervalMinutes),
+    }));
+  useEffect(() => {
+    if (drafts === null && settings.status === "ready") setDrafts(toDrafts(settings.values.sources));
+  }, [drafts, settings]);
+
+  const edit = (id: number, patch: Partial<Draft>) =>
+    setDrafts((list) => (list ?? []).map((d) => (d.id === id ? { ...d, ...patch } : d)));
+
+  async function save() {
+    if (settings.status !== "ready" || !drafts) return;
+    const parsed: GitSource[] = [];
+    for (const d of drafts) {
+      const result = gitSourceSchema.safeParse({
+        url: d.url,
+        ref: d.ref.trim() || undefined,
+        path: d.path.trim() || undefined,
+        intervalMinutes: d.interval.trim() ? Number(d.interval) : DEFAULT_SYNC_MINUTES,
+      });
+      if (!result.success) {
+        setError(`${d.url || "New source"}: ${result.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
+        return;
+      }
+      parsed.push(result.data);
+    }
+    setError(null);
+    if (await settings.save({ ...settings.values, sources: parsed }, settings.revision)) {
+      setDrafts(null);
+      props.onSaved();
+    }
+  }
+
+  return (
+    <View style={styles.panel}>
+      <View style={styles.row}>
+        <Text style={styles.heading}>Git sources</Text>
+        <Button styles={styles} label={props.syncing ? "Syncing…" : "Sync now"} onPress={props.onSync} />
+      </View>
+      <Text style={styles.muted}>
+        Roles are loaded from a folder of each repository, read-only, after your project and user roles. Repositories
+        are cloned with the daemon's own git credentials (for example its SSH key).
+      </Text>
+      {settings.status === "invalid" || settings.status === "error" ? (
+        <Text style={styles.error}>{settings.error}</Text>
+      ) : null}
+      {(drafts ?? []).map((d) => {
+        const status = props.statuses.find((g) => g.url === d.url && (g.ref ?? "") === d.ref.trim());
+        return (
+          <View key={d.id} style={styles.startBox}>
+            <SettingsInput label="Repository URL" initialValue={d.url} onChangeText={(url) => edit(d.id, { url })} placeholder="git@github.com:owner/repo.git" />
+            <SettingsInput label="Branch or tag (optional)" initialValue={d.ref} onChangeText={(ref) => edit(d.id, { ref })} placeholder="default branch" />
+            <SettingsInput label="Folder (optional)" initialValue={d.path} onChangeText={(path) => edit(d.id, { path })} placeholder="roles" />
+            <SettingsInput
+              label="Sync interval (minutes)"
+              initialValue={d.interval}
+              onChangeText={(interval) => edit(d.id, { interval })}
+              placeholder={String(DEFAULT_SYNC_MINUTES)}
+            />
+            {status ? <Text style={status.error ? styles.error : styles.muted}>{gitStatusText(status)}</Text> : null}
+            <Button styles={styles} label="Remove source" onPress={() => setDrafts((list) => (list ?? []).filter((x) => x.id !== d.id))} />
+          </View>
+        );
+      })}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {settings.status === "ready" && settings.saveError ? <Text style={styles.error}>{settings.saveError}</Text> : null}
+      <View style={styles.row}>
+        <Button
+          styles={styles}
+          label="Add source"
+          onPress={() =>
+            setDrafts((list) => [...(list ?? []), { id: nextId.current++, url: "", ref: "", path: "", interval: String(DEFAULT_SYNC_MINUTES) }])
+          }
+        />
+        <Button styles={styles} primary label={settings.status === "ready" && settings.saving ? "Saving…" : "Save sources"} onPress={save} />
+      </View>
     </View>
   );
 }

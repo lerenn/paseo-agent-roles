@@ -51,3 +51,12 @@ describe("bundled roles", () => {
     ]);
   });
 });
+
+describe("example roles", () => {
+  it("are valid role files", async () => {
+    const dir = path.join(__dirname, "..", "examples", "roles");
+    for (const name of ["docs-writer", "release-notes"]) {
+      expect((await loadRole(name, [dir]))?.name).toBe(name);
+    }
+  });
+});
